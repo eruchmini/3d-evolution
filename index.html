@@ -362,6 +362,7 @@
         let forwardSpeed = 0.3; // Current forward speed
         const minSpeed = 0.15;
         const maxSpeed = 0.8;
+        const cruisingSpeed = 0.3; // Natural cruising speed when flying level
         const pitchSpeed = 0.025; // How fast pitch changes
         const yawSpeed = 0.03; // How fast yaw changes
         const pitchDecay = 0.92; // How quickly pitch returns to neutral
@@ -431,6 +432,12 @@
             // Climbing (positive pitch) decreases speed
             const pitchSpeedEffect = -birdPitch * 0.015;
             forwardSpeed += pitchSpeedEffect;
+
+            // Air resistance - gradually return to cruising speed when flying level
+            // This prevents maintaining high dive speeds indefinitely
+            const speedDifference = forwardSpeed - cruisingSpeed;
+            const airResistance = speedDifference * 0.02; // 2% drag toward cruising speed
+            forwardSpeed -= airResistance;
 
             // Speed boost with space
             let currentSpeed = forwardSpeed;
