@@ -98,6 +98,7 @@
         <div>Speed: <span id="speed" class="speed-indicator">0</span></div>
         <div>Pitch: <span id="pitch">0</span>°</div>
         <div>Position: <span id="position">0, 0</span></div>
+        <div>Rats Caught: <span id="caughtRats">0</span></div>
     </div>
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
@@ -446,6 +447,112 @@
             scene.add(createMountain(-MAP_SIZE, z, MOUNTAIN_WIDTH, MOUNTAIN_WIDTH)); // West
         }
 
+        // Create rats
+        function createRat(x, z) {
+            const rat = new THREE.Group();
+
+            // Rat body (elongated sphere)
+            const bodyGeometry = new THREE.SphereGeometry(0.15, 16, 16);
+            bodyGeometry.scale(1.2, 0.8, 1.5);
+            const bodyMaterial = new THREE.MeshStandardMaterial({
+                color: 0x5a5a5a,
+                roughness: 0.8,
+                metalness: 0.1
+            });
+            const body = new THREE.Mesh(bodyGeometry, bodyMaterial);
+            body.position.y = 0.12;
+            body.castShadow = true;
+            rat.add(body);
+
+            // Rat head
+            const headGeometry = new THREE.SphereGeometry(0.1, 16, 16);
+            const headMaterial = new THREE.MeshStandardMaterial({
+                color: 0x6a6a6a,
+                roughness: 0.8,
+                metalness: 0.1
+            });
+            const head = new THREE.Mesh(headGeometry, headMaterial);
+            head.position.set(0, 0.14, 0.22);
+            head.castShadow = true;
+            rat.add(head);
+
+            // Rat ears
+            const earGeometry = new THREE.SphereGeometry(0.05, 8, 8);
+            const earMaterial = new THREE.MeshStandardMaterial({
+                color: 0xffb6c1,
+                roughness: 0.6,
+                metalness: 0.05
+            });
+            const leftEar = new THREE.Mesh(earGeometry, earMaterial);
+            leftEar.position.set(-0.07, 0.2, 0.22);
+            leftEar.scale.set(1, 1.2, 0.5);
+            rat.add(leftEar);
+            const rightEar = new THREE.Mesh(earGeometry, earMaterial);
+            rightEar.position.set(0.07, 0.2, 0.22);
+            rightEar.scale.set(1, 1.2, 0.5);
+            rat.add(rightEar);
+
+            // Rat eyes
+            const eyeGeometry = new THREE.SphereGeometry(0.02, 8, 8);
+            const eyeMaterial = new THREE.MeshStandardMaterial({ color: 0x000000 });
+            const leftEye = new THREE.Mesh(eyeGeometry, eyeMaterial);
+            leftEye.position.set(-0.04, 0.16, 0.3);
+            rat.add(leftEye);
+            const rightEye = new THREE.Mesh(eyeGeometry, eyeMaterial);
+            rightEye.position.set(0.04, 0.16, 0.3);
+            rat.add(rightEye);
+
+            // Rat nose
+            const noseGeometry = new THREE.SphereGeometry(0.015, 8, 8);
+            const noseMaterial = new THREE.MeshStandardMaterial({ color: 0xffb6c1 });
+            const nose = new THREE.Mesh(noseGeometry, noseMaterial);
+            nose.position.set(0, 0.14, 0.32);
+            rat.add(nose);
+
+            // Rat tail (curved)
+            const tailCurve = new THREE.QuadraticBezierCurve3(
+                new THREE.Vector3(0, 0.08, -0.22),
+                new THREE.Vector3(0.05, 0.08, -0.35),
+                new THREE.Vector3(0, 0.02, -0.5)
+            );
+            const tailGeometry = new THREE.TubeGeometry(tailCurve, 8, 0.02, 6, false);
+            const tailMaterial = new THREE.MeshStandardMaterial({
+                color: 0x8a8a8a,
+                roughness: 0.8,
+                metalness: 0.1
+            });
+            const tail = new THREE.Mesh(tailGeometry, tailMaterial);
+            tail.castShadow = true;
+            rat.add(tail);
+
+            rat.position.set(x, 0, z);
+
+            // Add custom properties for behavior
+            rat.userData.velocity = new THREE.Vector2(0, 0);
+            rat.userData.fleeSpeed = 0.08;
+            rat.userData.wanderSpeed = 0.02;
+            rat.userData.wanderAngle = Math.random() * Math.PI * 2;
+            rat.userData.isCaught = false;
+
+            return rat;
+        }
+
+        // Spawn rats across the map
+        const rats = [];
+        const NUM_RATS = 30;
+        for (let i = 0; i < NUM_RATS; i++) {
+            const angle = Math.random() * Math.PI * 2;
+            const distance = Math.random() * 200 - 100;
+            const rat = createRat(
+                Math.cos(angle) * distance,
+                Math.sin(angle) * distance
+            );
+            rats.push(rat);
+            scene.add(rat);
+        }
+
+        let caughtRatsCount = 0;
+
         // Camera setup
         camera.position.set(0, 17, -10);
         camera.lookAt(bird.position);
@@ -672,6 +779,83 @@
                 }
             });
 
+            // Update rats behavior
+            const FLEE_DISTANCE = 10; // Distance at which rats flee
+            const CATCH_DISTANCE = 1.5; // Distance to catch a rat
+            const SHADOW_FLEE_DISTANCE = 8; // Distance from shadow to flee
+
+            for (let i = rats.length - 1; i >= 0; i--) {
+                const rat = rats[i];
+                if (rat.userData.isCaught) continue;
+
+                // Calculate distance to bird (3D)
+                const dx = bird.position.x - rat.position.x;
+                const dz = bird.position.z - rat.position.z;
+                const dy = bird.position.y - rat.position.y;
+                const distanceToBird = Math.sqrt(dx * dx + dz * dz + dy * dy);
+                const horizontalDistance = Math.sqrt(dx * dx + dz * dz);
+
+                // Calculate shadow position (bird projected onto ground)
+                const shadowX = bird.position.x;
+                const shadowZ = bird.position.z;
+                const shadowDx = shadowX - rat.position.x;
+                const shadowDz = shadowZ - rat.position.z;
+                const distanceToShadow = Math.sqrt(shadowDx * shadowDx + shadowDz * shadowDz);
+
+                let fleeing = false;
+
+                // Check if rat should flee from bird or shadow
+                if (distanceToBird < FLEE_DISTANCE || distanceToShadow < SHADOW_FLEE_DISTANCE) {
+                    fleeing = true;
+
+                    // Flee away from whichever is closer
+                    let fleeAngle;
+                    if (distanceToShadow < distanceToBird && distanceToShadow < SHADOW_FLEE_DISTANCE) {
+                        // Flee from shadow
+                        fleeAngle = Math.atan2(-shadowDz, -shadowDx);
+                    } else {
+                        // Flee from bird
+                        fleeAngle = Math.atan2(-dz, -dx);
+                    }
+
+                    rat.userData.velocity.x = Math.cos(fleeAngle) * rat.userData.fleeSpeed;
+                    rat.userData.velocity.y = Math.sin(fleeAngle) * rat.userData.fleeSpeed;
+                } else {
+                    // Wander randomly when not fleeing
+                    rat.userData.wanderAngle += (Math.random() - 0.5) * 0.3;
+                    rat.userData.velocity.x = Math.cos(rat.userData.wanderAngle) * rat.userData.wanderSpeed;
+                    rat.userData.velocity.y = Math.sin(rat.userData.wanderAngle) * rat.userData.wanderSpeed;
+                }
+
+                // Apply velocity
+                rat.position.x += rat.userData.velocity.x;
+                rat.position.z += rat.userData.velocity.y;
+
+                // Keep rats within map boundaries
+                const ratBoundary = MAP_SIZE - 20;
+                if (Math.abs(rat.position.x) > ratBoundary) {
+                    rat.position.x = Math.sign(rat.position.x) * ratBoundary;
+                    rat.userData.wanderAngle = Math.PI - rat.userData.wanderAngle;
+                }
+                if (Math.abs(rat.position.z) > ratBoundary) {
+                    rat.position.z = Math.sign(rat.position.z) * ratBoundary;
+                    rat.userData.wanderAngle = -rat.userData.wanderAngle;
+                }
+
+                // Update rat rotation to face movement direction
+                if (rat.userData.velocity.x !== 0 || rat.userData.velocity.y !== 0) {
+                    rat.rotation.y = Math.atan2(rat.userData.velocity.x, rat.userData.velocity.y);
+                }
+
+                // Check if caught (only when bird is close to ground)
+                if (horizontalDistance < CATCH_DISTANCE && bird.position.y < 3) {
+                    rat.userData.isCaught = true;
+                    scene.remove(rat);
+                    rats.splice(i, 1);
+                    caughtRatsCount++;
+                }
+            }
+
             // Update stats with color coding
             const speedElement = document.getElementById('speed');
             const speedValue = currentSpeed.toFixed(3);
@@ -690,6 +874,7 @@
             document.getElementById('pitch').textContent = Math.round(birdPitch * 57.3); // Convert to degrees
             document.getElementById('position').textContent =
                 `${Math.round(bird.position.x)}, ${Math.round(bird.position.z)}`;
+            document.getElementById('caughtRats').textContent = caughtRatsCount;
 
             renderer.render(scene, camera);
         }
