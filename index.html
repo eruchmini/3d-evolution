@@ -351,6 +351,59 @@
             scene.add(tree);
         }
 
+        // Create mountain boundary around the map
+        function createMountain(x, z, width, depth) {
+            const mountain = new THREE.Group();
+
+            // Main mountain body
+            const mountainGeometry = new THREE.ConeGeometry(width / 2, 30, 16);
+            const mountainMaterial = new THREE.MeshStandardMaterial({
+                color: 0x8B7355,
+                roughness: 0.95,
+                metalness: 0
+            });
+            const mountainMesh = new THREE.Mesh(mountainGeometry, mountainMaterial);
+            mountainMesh.position.y = 15;
+            mountainMesh.castShadow = true;
+            mountainMesh.receiveShadow = true;
+            mountain.add(mountainMesh);
+
+            // Snow cap
+            const snowCapGeometry = new THREE.ConeGeometry(width / 3, 12, 16);
+            const snowMaterial = new THREE.MeshStandardMaterial({
+                color: 0xFFFFFF,
+                roughness: 0.7,
+                metalness: 0.1
+            });
+            const snowCap = new THREE.Mesh(snowCapGeometry, snowMaterial);
+            snowCap.position.y = 24;
+            mountain.add(snowCap);
+
+            mountain.position.set(x, 0, z);
+            return mountain;
+        }
+
+        // Map boundary constants
+        const MAP_SIZE = 250; // Half-size of the map (500x500 total)
+        const MOUNTAIN_HEIGHT = 30;
+        const MOUNTAIN_WIDTH = 40;
+        const BOUNDARY_BUFFER = 15; // Extra space before hitting invisible wall
+
+        // Create mountain ring around the map perimeter
+        const mountainSpacing = 60;
+
+        // North and South walls
+        for (let x = -MAP_SIZE; x <= MAP_SIZE; x += mountainSpacing) {
+            scene.add(createMountain(x, MAP_SIZE, MOUNTAIN_WIDTH, MOUNTAIN_WIDTH));  // North
+            scene.add(createMountain(x, -MAP_SIZE, MOUNTAIN_WIDTH, MOUNTAIN_WIDTH)); // South
+        }
+
+        // East and West walls (skip corners to avoid overlap)
+        for (let z = -MAP_SIZE + mountainSpacing; z < MAP_SIZE; z += mountainSpacing) {
+            scene.add(createMountain(MAP_SIZE, z, MOUNTAIN_WIDTH, MOUNTAIN_WIDTH));  // East
+            scene.add(createMountain(-MAP_SIZE, z, MOUNTAIN_WIDTH, MOUNTAIN_WIDTH)); // West
+        }
+
         // Camera setup
         camera.position.set(0, 17, -10);
         camera.lookAt(bird.position);
@@ -458,13 +511,45 @@
             bird.position.z += Math.cos(birdYaw) * pitchCos * currentSpeed;
             bird.position.y += pitchSin * currentSpeed;
 
+            // Map boundary collision with mountain walls
+            const boundaryLimit = MAP_SIZE - BOUNDARY_BUFFER;
+            const distanceFromCenter = Math.sqrt(
+                bird.position.x * bird.position.x +
+                bird.position.z * bird.position.z
+            );
+
+            // Check if bird is near or past the boundary
+            if (Math.abs(bird.position.x) > boundaryLimit || Math.abs(bird.position.z) > boundaryLimit) {
+                // Calculate distance from center to determine if we're at the edge
+                const maxDistance = boundaryLimit * Math.sqrt(2); // Diagonal distance
+
+                // If too far from center, push bird back
+                if (distanceFromCenter > boundaryLimit) {
+                    // Normalize position and push back to boundary
+                    const angle = Math.atan2(bird.position.z, bird.position.x);
+                    bird.position.x = Math.cos(angle) * boundaryLimit;
+                    bird.position.z = Math.sin(angle) * boundaryLimit;
+
+                    // Bounce bird away from wall if flying into it
+                    if (Math.cos(birdYaw - angle) > 0.5) {
+                        birdYaw = angle + Math.PI; // Turn around
+                    }
+                }
+
+                // Invisible wall at top of mountains - can't fly over them
+                if (bird.position.y > MOUNTAIN_HEIGHT) {
+                    bird.position.y = MOUNTAIN_HEIGHT;
+                    birdPitch = Math.min(birdPitch, -0.1); // Force downward
+                }
+            }
+
             // Keep bird above ground with bounce
             if (bird.position.y < 2) {
                 bird.position.y = 2;
                 birdPitch = Math.abs(birdPitch) * 0.5; // Bounce up slightly
             }
 
-            // Soft height ceiling
+            // Global height ceiling (for areas away from mountains)
             if (bird.position.y > 80) {
                 bird.position.y = 80;
                 birdPitch = Math.min(birdPitch, 0);
