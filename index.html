@@ -428,11 +428,11 @@
         // Map boundary constants
         const MAP_SIZE = 250; // Half-size of the map (500x500 total)
         const MOUNTAIN_HEIGHT = 100; // Increased from 30 to 100 meters
-        const MOUNTAIN_WIDTH = 40;
+        const MOUNTAIN_WIDTH = 60; // Increased to ensure no gaps
         const BOUNDARY_BUFFER = 15; // Extra space before hitting invisible wall
 
         // Create mountain ring around the map perimeter
-        const mountainSpacing = 60;
+        const mountainSpacing = 45; // Reduced spacing to eliminate gaps
 
         // North and South walls
         for (let x = -MAP_SIZE; x <= MAP_SIZE; x += mountainSpacing) {
@@ -634,7 +634,10 @@
             } else {
                 // Third-person camera follows bird from behind
                 const cameraDistance = 10 + currentSpeed * 8;
-                const cameraHeight = 3 + Math.abs(birdPitch) * 5;
+                // Fixed: camera height now properly responds to pitch direction
+                // When pitching up (positive), camera stays level or goes slightly lower
+                // When pitching down (negative), camera goes higher to see over the bird
+                const cameraHeight = 3 - birdPitch * 8;
                 const cameraOffset = new THREE.Vector3(
                     Math.sin(birdYaw) * -cameraDistance,
                     cameraHeight,
