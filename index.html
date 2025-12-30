@@ -351,6 +351,101 @@
             scene.add(tree);
         }
 
+        // Create mountain boundary around the map with variation
+        function createMountain(x, z, width, depth) {
+            const mountain = new THREE.Group();
+
+            // Randomize mountain characteristics for variety
+            const heightVariation = Math.random() * 40 + 80; // 80-120m tall
+            const widthVariation = width * (0.8 + Math.random() * 0.6); // 0.8x to 1.4x width
+            const segments = Math.floor(Math.random() * 8) + 12; // 12-20 segments for variety
+
+            // Random rock colors (browns, grays, dark earth tones)
+            const rockColors = [
+                0x8B7355, // Sandy brown
+                0x696969, // Dim gray
+                0x5C4033, // Dark brown
+                0x708090, // Slate gray
+                0x654321, // Dark brown
+                0x778899, // Light slate gray
+                0x6B5D4F  // Brownish gray
+            ];
+            const rockColor = rockColors[Math.floor(Math.random() * rockColors.length)];
+
+            // Main mountain body - varied shape
+            const mountainGeometry = new THREE.ConeGeometry(widthVariation / 2, heightVariation, segments);
+            const mountainMaterial = new THREE.MeshStandardMaterial({
+                color: rockColor,
+                roughness: 0.9 + Math.random() * 0.1,
+                metalness: 0
+            });
+            const mountainMesh = new THREE.Mesh(mountainGeometry, mountainMaterial);
+            mountainMesh.position.y = heightVariation / 2;
+            mountainMesh.castShadow = true;
+            mountainMesh.receiveShadow = true;
+            mountain.add(mountainMesh);
+
+            // Snow cap - varying sizes and heights
+            const snowCapHeight = heightVariation * (0.15 + Math.random() * 0.15); // 15-30% of mountain
+            const snowCapGeometry = new THREE.ConeGeometry(widthVariation / 4, snowCapHeight, segments);
+            const snowMaterial = new THREE.MeshStandardMaterial({
+                color: 0xFFFFFF,
+                roughness: 0.6 + Math.random() * 0.3,
+                metalness: 0.05 + Math.random() * 0.1
+            });
+            const snowCap = new THREE.Mesh(snowCapGeometry, snowMaterial);
+            snowCap.position.y = heightVariation - snowCapHeight / 2;
+            mountain.add(snowCap);
+
+            // Add some random rock outcroppings for variety
+            if (Math.random() > 0.5) {
+                const rockSize = widthVariation * 0.15;
+                const rockGeometry = new THREE.DodecahedronGeometry(rockSize, 0);
+                const rockMaterial = new THREE.MeshStandardMaterial({
+                    color: rockColor,
+                    roughness: 0.95,
+                    metalness: 0
+                });
+                const rock = new THREE.Mesh(rockGeometry, rockMaterial);
+                rock.position.set(
+                    (Math.random() - 0.5) * widthVariation * 0.4,
+                    heightVariation * (0.3 + Math.random() * 0.3),
+                    (Math.random() - 0.5) * widthVariation * 0.4
+                );
+                rock.rotation.set(
+                    Math.random() * Math.PI,
+                    Math.random() * Math.PI,
+                    Math.random() * Math.PI
+                );
+                rock.castShadow = true;
+                mountain.add(rock);
+            }
+
+            mountain.position.set(x, 0, z);
+            return mountain;
+        }
+
+        // Map boundary constants
+        const MAP_SIZE = 250; // Half-size of the map (500x500 total)
+        const MOUNTAIN_HEIGHT = 100; // Increased from 30 to 100 meters
+        const MOUNTAIN_WIDTH = 60; // Increased to ensure no gaps
+        const BOUNDARY_BUFFER = 15; // Extra space before hitting invisible wall
+
+        // Create mountain ring around the map perimeter
+        const mountainSpacing = 45; // Reduced spacing to eliminate gaps
+
+        // North and South walls
+        for (let x = -MAP_SIZE; x <= MAP_SIZE; x += mountainSpacing) {
+            scene.add(createMountain(x, MAP_SIZE, MOUNTAIN_WIDTH, MOUNTAIN_WIDTH));  // North
+            scene.add(createMountain(x, -MAP_SIZE, MOUNTAIN_WIDTH, MOUNTAIN_WIDTH)); // South
+        }
+
+        // East and West walls (skip corners to avoid overlap)
+        for (let z = -MAP_SIZE + mountainSpacing; z < MAP_SIZE; z += mountainSpacing) {
+            scene.add(createMountain(MAP_SIZE, z, MOUNTAIN_WIDTH, MOUNTAIN_WIDTH));  // East
+            scene.add(createMountain(-MAP_SIZE, z, MOUNTAIN_WIDTH, MOUNTAIN_WIDTH)); // West
+        }
+
         // Camera setup
         camera.position.set(0, 17, -10);
         camera.lookAt(bird.position);
@@ -370,6 +465,7 @@
         let trailIndex = 0;
         let bankingAngle = 0; // Current tilt angle when turning
         let isFirstPerson = true; // Camera mode: true = first-person, false = third-person
+        let previousPosition = new THREE.Vector3(0, 15, 0); // Track previous position for velocity calculation
 
         // Keyboard controls
         window.addEventListener('keydown', (e) => {
@@ -458,22 +554,69 @@
             bird.position.z += Math.cos(birdYaw) * pitchCos * currentSpeed;
             bird.position.y += pitchSin * currentSpeed;
 
+            // Map boundary collision with mountain walls
+            const boundaryLimit = MAP_SIZE - BOUNDARY_BUFFER;
+            const distanceFromCenter = Math.sqrt(
+                bird.position.x * bird.position.x +
+                bird.position.z * bird.position.z
+            );
+
+            // Check if bird is near or past the boundary
+            if (Math.abs(bird.position.x) > boundaryLimit || Math.abs(bird.position.z) > boundaryLimit) {
+                // Calculate distance from center to determine if we're at the edge
+                const maxDistance = boundaryLimit * Math.sqrt(2); // Diagonal distance
+
+                // If too far from center, push bird back
+                if (distanceFromCenter > boundaryLimit) {
+                    // Normalize position and push back to boundary
+                    const angle = Math.atan2(bird.position.z, bird.position.x);
+                    bird.position.x = Math.cos(angle) * boundaryLimit;
+                    bird.position.z = Math.sin(angle) * boundaryLimit;
+
+                    // Bounce bird away from wall if flying into it
+                    if (Math.cos(birdYaw - angle) > 0.5) {
+                        birdYaw = angle + Math.PI; // Turn around
+                    }
+                }
+
+                // Invisible wall at top of mountains - can't fly over them
+                if (bird.position.y > MOUNTAIN_HEIGHT) {
+                    bird.position.y = MOUNTAIN_HEIGHT;
+                    birdPitch = Math.min(birdPitch, -0.1); // Force downward
+                }
+            }
+
             // Keep bird above ground with bounce
             if (bird.position.y < 2) {
                 bird.position.y = 2;
                 birdPitch = Math.abs(birdPitch) * 0.5; // Bounce up slightly
             }
 
-            // Soft height ceiling
+            // Global height ceiling (for areas away from mountains)
             if (bird.position.y > 80) {
                 bird.position.y = 80;
                 birdPitch = Math.min(birdPitch, 0);
             }
 
-            // Update bird rotation with enhanced banking
+            // Calculate actual velocity to determine visual pitch
+            const actualVelocity = bird.position.clone().sub(previousPosition);
+            const horizontalSpeed = Math.sqrt(actualVelocity.x * actualVelocity.x + actualVelocity.z * actualVelocity.z);
+            const verticalSpeed = actualVelocity.y;
+
+            // Calculate the actual flight path angle based on real velocity
+            // This ensures the bird visually points in the direction it's actually moving
+            let visualPitch = birdPitch;
+            if (horizontalSpeed > 0.001) { // Avoid division by zero
+                visualPitch = Math.atan2(verticalSpeed, horizontalSpeed);
+            }
+
+            // Update bird rotation with actual flight direction
             bird.rotation.y = birdYaw;
-            bird.rotation.x = -birdPitch;
+            bird.rotation.x = -visualPitch; // Use actual flight path angle
             bird.rotation.z = bankingAngle; // Enhanced banking effect when turning
+
+            // Store current position for next frame's velocity calculation
+            previousPosition.copy(bird.position);
 
             // Dynamic wing flapping based on speed
             wingFlap += 0.15 + currentSpeed * 0.3;
@@ -507,7 +650,10 @@
             } else {
                 // Third-person camera follows bird from behind
                 const cameraDistance = 10 + currentSpeed * 8;
-                const cameraHeight = 3 + Math.abs(birdPitch) * 5;
+                // Fixed: camera height now properly responds to pitch direction
+                // When pitching up (positive), camera stays level or goes slightly lower
+                // When pitching down (negative), camera goes higher to see over the bird
+                const cameraHeight = 3 - birdPitch * 8;
                 const cameraOffset = new THREE.Vector3(
                     Math.sin(birdYaw) * -cameraDistance,
                     cameraHeight,
