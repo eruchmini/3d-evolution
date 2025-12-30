@@ -383,15 +383,10 @@
                 console.log('Camera mode:', isFirstPerson ? 'First Person' : 'Third Person');
             }
 
-            // Toggle caps lock camera lock
+            // Toggle caps lock camera lock with CapsLock key
             if (e.key === 'CapsLock' || e.code === 'CapsLock') {
                 capsLockActive = !capsLockActive;
                 console.log('Camera lock:', capsLockActive ? 'ON' : 'OFF');
-            }
-
-            // Also check caps lock state from event
-            if (e.getModifierState && e.getModifierState('CapsLock')) {
-                capsLockActive = true;
             }
         });
 
