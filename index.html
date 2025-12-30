@@ -63,23 +63,39 @@
         #stats div {
             margin: 5px 0;
         }
+
+        .speed-indicator {
+            font-weight: bold;
+        }
+
+        .high-speed {
+            color: #ff4444;
+        }
+
+        .low-speed {
+            color: #44ff44;
+        }
     </style>
 </head>
 <body>
     <div id="instructions">
         <h2>🐦 Bird Flying Game</h2>
         <ul>
-            <li><strong>W/↑</strong> - Fly up</li>
-            <li><strong>S/↓</strong> - Fly down</li>
+            <li><strong>W/↑</strong> - Pitch up</li>
+            <li><strong>S/↓</strong> - Pitch down (dive for speed!)</li>
             <li><strong>A/←</strong> - Turn left</li>
             <li><strong>D/→</strong> - Turn right</li>
             <li><strong>Space</strong> - Speed boost</li>
         </ul>
+        <p style="margin-top: 10px; font-size: 12px; opacity: 0.8;">
+            Tip: Dive to gain speed, climb to slow down!
+        </p>
     </div>
 
     <div id="stats">
         <div>Altitude: <span id="altitude">0</span>m</div>
-        <div>Speed: <span id="speed">0</span></div>
+        <div>Speed: <span id="speed" class="speed-indicator">0</span></div>
+        <div>Pitch: <span id="pitch">0</span>°</div>
         <div>Position: <span id="position">0, 0</span></div>
     </div>
 
@@ -88,109 +104,187 @@
         // Game setup
         const scene = new THREE.Scene();
         const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
-        const renderer = new THREE.WebGLRenderer({ antialias: true });
+        const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false });
         renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.setPixelRatio(window.devicePixelRatio);
         renderer.shadowMap.enabled = true;
         renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+        renderer.toneMapping = THREE.ACESFilmicToneMapping;
+        renderer.toneMappingExposure = 1.2;
         document.body.appendChild(renderer.domElement);
 
-        // Sky gradient
-        scene.background = new THREE.Color(0x87CEEB);
-        scene.fog = new THREE.Fog(0x87CEEB, 50, 300);
+        // Enhanced sky with gradient
+        const skyColor = 0x87CEEB;
+        const horizonColor = 0xffffff;
+        scene.background = new THREE.Color(skyColor);
+        scene.fog = new THREE.FogExp2(0x87CEEB, 0.0015);
 
-        // Lighting
-        const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
+        // Enhanced lighting
+        const ambientLight = new THREE.AmbientLight(0xffffff, 0.7);
         scene.add(ambientLight);
 
-        const directionalLight = new THREE.DirectionalLight(0xffffff, 0.8);
-        directionalLight.position.set(50, 100, 50);
+        const directionalLight = new THREE.DirectionalLight(0xfff5e1, 1.2);
+        directionalLight.position.set(100, 150, 50);
         directionalLight.castShadow = true;
-        directionalLight.shadow.mapSize.width = 2048;
-        directionalLight.shadow.mapSize.height = 2048;
+        directionalLight.shadow.mapSize.width = 4096;
+        directionalLight.shadow.mapSize.height = 4096;
+        directionalLight.shadow.camera.left = -100;
+        directionalLight.shadow.camera.right = 100;
+        directionalLight.shadow.camera.top = 100;
+        directionalLight.shadow.camera.bottom = -100;
         directionalLight.shadow.camera.far = 500;
+        directionalLight.shadow.bias = -0.0001;
         scene.add(directionalLight);
 
-        // Create bird
+        // Add hemisphere light for better ambient lighting
+        const hemisphereLight = new THREE.HemisphereLight(0x87CEEB, 0x228B22, 0.5);
+        scene.add(hemisphereLight);
+
+        // Create bird with improved materials
         const bird = new THREE.Group();
 
-        // Bird body
-        const bodyGeometry = new THREE.SphereGeometry(0.5, 16, 16);
+        // Bird body with better material
+        const bodyGeometry = new THREE.SphereGeometry(0.5, 32, 32);
         bodyGeometry.scale(1, 0.8, 1.2);
-        const bodyMaterial = new THREE.MeshPhongMaterial({ color: 0xFF6B6B });
+        const bodyMaterial = new THREE.MeshStandardMaterial({
+            color: 0xFF6B6B,
+            metalness: 0.1,
+            roughness: 0.6,
+            emissive: 0x330000,
+            emissiveIntensity: 0.1
+        });
         const body = new THREE.Mesh(bodyGeometry, bodyMaterial);
         body.castShadow = true;
         bird.add(body);
 
         // Bird head
-        const headGeometry = new THREE.SphereGeometry(0.3, 16, 16);
-        const headMaterial = new THREE.MeshPhongMaterial({ color: 0xFF8C8C });
+        const headGeometry = new THREE.SphereGeometry(0.3, 32, 32);
+        const headMaterial = new THREE.MeshStandardMaterial({
+            color: 0xFF8C8C,
+            metalness: 0.1,
+            roughness: 0.6
+        });
         const head = new THREE.Mesh(headGeometry, headMaterial);
         head.position.set(0, 0.2, 0.6);
         head.castShadow = true;
         bird.add(head);
 
+        // Bird eyes
+        const eyeGeometry = new THREE.SphereGeometry(0.08, 16, 16);
+        const eyeMaterial = new THREE.MeshStandardMaterial({ color: 0x000000 });
+        const leftEye = new THREE.Mesh(eyeGeometry, eyeMaterial);
+        leftEye.position.set(-0.12, 0.25, 0.75);
+        bird.add(leftEye);
+        const rightEye = new THREE.Mesh(eyeGeometry, eyeMaterial);
+        rightEye.position.set(0.12, 0.25, 0.75);
+        bird.add(rightEye);
+
         // Bird beak
-        const beakGeometry = new THREE.ConeGeometry(0.1, 0.3, 8);
-        const beakMaterial = new THREE.MeshPhongMaterial({ color: 0xFFD700 });
+        const beakGeometry = new THREE.ConeGeometry(0.1, 0.35, 8);
+        const beakMaterial = new THREE.MeshStandardMaterial({
+            color: 0xFFD700,
+            metalness: 0.3,
+            roughness: 0.4
+        });
         const beak = new THREE.Mesh(beakGeometry, beakMaterial);
-        beak.position.set(0, 0.2, 0.85);
+        beak.position.set(0, 0.2, 0.9);
         beak.rotation.x = Math.PI / 2;
         bird.add(beak);
 
-        // Left wing
-        const wingGeometry = new THREE.BoxGeometry(1.2, 0.1, 0.6);
-        const wingMaterial = new THREE.MeshPhongMaterial({ color: 0xFF5252 });
+        // Enhanced wings
+        const wingGeometry = new THREE.BoxGeometry(1.4, 0.08, 0.7);
+        const wingMaterial = new THREE.MeshStandardMaterial({
+            color: 0xFF5252,
+            metalness: 0.2,
+            roughness: 0.5,
+            emissive: 0x330000,
+            emissiveIntensity: 0.1
+        });
         const leftWing = new THREE.Mesh(wingGeometry, wingMaterial);
-        leftWing.position.set(-0.7, 0, 0);
+        leftWing.position.set(-0.8, 0, 0);
         leftWing.castShadow = true;
         bird.add(leftWing);
 
-        // Right wing
         const rightWing = new THREE.Mesh(wingGeometry, wingMaterial);
-        rightWing.position.set(0.7, 0, 0);
+        rightWing.position.set(0.8, 0, 0);
         rightWing.castShadow = true;
         bird.add(rightWing);
 
-        // Tail
-        const tailGeometry = new THREE.ConeGeometry(0.3, 0.6, 8);
-        const tailMaterial = new THREE.MeshPhongMaterial({ color: 0xFF5252 });
+        // Tail feathers
+        const tailGeometry = new THREE.ConeGeometry(0.35, 0.7, 8);
+        const tailMaterial = new THREE.MeshStandardMaterial({
+            color: 0xFF5252,
+            metalness: 0.2,
+            roughness: 0.5
+        });
         const tail = new THREE.Mesh(tailGeometry, tailMaterial);
-        tail.position.set(0, 0, -0.8);
+        tail.position.set(0, 0, -0.9);
         tail.rotation.x = Math.PI / 2;
+        tail.castShadow = true;
         bird.add(tail);
 
-        bird.position.set(0, 10, 0);
+        bird.position.set(0, 15, 0);
         scene.add(bird);
 
-        // Ground
-        const groundGeometry = new THREE.PlaneGeometry(500, 500);
-        const groundMaterial = new THREE.MeshPhongMaterial({
-            color: 0x228B22,
-            side: THREE.DoubleSide
+        // Motion trail
+        const trailPoints = [];
+        const trailLength = 20;
+        for (let i = 0; i < trailLength; i++) {
+            trailPoints.push(new THREE.Vector3(0, 15, 0));
+        }
+        const trailGeometry = new THREE.BufferGeometry().setFromPoints(trailPoints);
+        const trailMaterial = new THREE.LineBasicMaterial({
+            color: 0xFF6B6B,
+            transparent: true,
+            opacity: 0.3,
+            linewidth: 2
+        });
+        const trail = new THREE.Line(trailGeometry, trailMaterial);
+        scene.add(trail);
+
+        // Enhanced ground with visible texture
+        const groundGeometry = new THREE.PlaneGeometry(500, 500, 50, 50);
+        const groundMaterial = new THREE.MeshStandardMaterial({
+            color: 0x4a7c2c,
+            roughness: 0.85,
+            metalness: 0.05
         });
         const ground = new THREE.Mesh(groundGeometry, groundMaterial);
         ground.rotation.x = -Math.PI / 2;
+        ground.position.y = 0;
         ground.receiveShadow = true;
+
+        // Add some variation to the ground for terrain effect
+        const positions = ground.geometry.attributes.position;
+        for (let i = 0; i < positions.count; i++) {
+            const y = Math.random() * 1.5 + Math.sin(i * 0.1) * 0.5;
+            positions.setZ(i, y);
+        }
+        positions.needsUpdate = true;
+        ground.geometry.computeVertexNormals();
+
         scene.add(ground);
 
-        // Create clouds
+        // Create enhanced clouds
         function createCloud(x, y, z) {
             const cloud = new THREE.Group();
-            const cloudMaterial = new THREE.MeshPhongMaterial({
+            const cloudMaterial = new THREE.MeshStandardMaterial({
                 color: 0xFFFFFF,
                 transparent: true,
-                opacity: 0.8
+                opacity: 0.7,
+                roughness: 1,
+                metalness: 0
             });
 
-            for (let i = 0; i < 5; i++) {
+            for (let i = 0; i < 7; i++) {
                 const cloudPart = new THREE.Mesh(
-                    new THREE.SphereGeometry(Math.random() * 2 + 1, 8, 8),
+                    new THREE.SphereGeometry(Math.random() * 2.5 + 1.5, 16, 16),
                     cloudMaterial
                 );
                 cloudPart.position.set(
-                    Math.random() * 4 - 2,
+                    Math.random() * 5 - 2.5,
                     Math.random() * 2 - 1,
-                    Math.random() * 4 - 2
+                    Math.random() * 5 - 2.5
                 );
                 cloud.add(cloudPart);
             }
@@ -199,60 +293,79 @@
             return cloud;
         }
 
-        // Add multiple clouds
+        // Add multiple clouds at various heights
         const clouds = [];
-        for (let i = 0; i < 20; i++) {
+        for (let i = 0; i < 30; i++) {
             const cloud = createCloud(
-                Math.random() * 200 - 100,
-                Math.random() * 30 + 20,
-                Math.random() * 200 - 100
+                Math.random() * 300 - 150,
+                Math.random() * 40 + 20,
+                Math.random() * 300 - 150
             );
             clouds.push(cloud);
             scene.add(cloud);
         }
 
-        // Create some trees/obstacles
+        // Create enhanced trees/obstacles
         function createTree(x, z) {
             const tree = new THREE.Group();
 
             // Trunk
-            const trunkGeometry = new THREE.CylinderGeometry(0.3, 0.4, 5, 8);
-            const trunkMaterial = new THREE.MeshPhongMaterial({ color: 0x8B4513 });
+            const trunkGeometry = new THREE.CylinderGeometry(0.3, 0.5, 6, 12);
+            const trunkMaterial = new THREE.MeshStandardMaterial({
+                color: 0x6B4423,
+                roughness: 0.9,
+                metalness: 0
+            });
             const trunk = new THREE.Mesh(trunkGeometry, trunkMaterial);
-            trunk.position.y = 2.5;
+            trunk.position.y = 3;
             trunk.castShadow = true;
+            trunk.receiveShadow = true;
             tree.add(trunk);
 
-            // Foliage
-            const foliageGeometry = new THREE.ConeGeometry(2, 4, 8);
-            const foliageMaterial = new THREE.MeshPhongMaterial({ color: 0x0F5F0F });
-            const foliage = new THREE.Mesh(foliageGeometry, foliageMaterial);
-            foliage.position.y = 6;
-            foliage.castShadow = true;
-            tree.add(foliage);
+            // Multiple layers of foliage
+            const foliageMaterial = new THREE.MeshStandardMaterial({
+                color: 0x1a5f1a,
+                roughness: 0.9,
+                metalness: 0
+            });
+
+            for (let i = 0; i < 3; i++) {
+                const foliageGeometry = new THREE.ConeGeometry(2.5 - i * 0.5, 3, 8);
+                const foliage = new THREE.Mesh(foliageGeometry, foliageMaterial);
+                foliage.position.y = 5.5 + i * 1.5;
+                foliage.castShadow = true;
+                tree.add(foliage);
+            }
 
             tree.position.set(x, 0, z);
             return tree;
         }
 
-        // Add trees
-        for (let i = 0; i < 30; i++) {
+        // Add trees with better distribution
+        for (let i = 0; i < 40; i++) {
             const tree = createTree(
-                Math.random() * 200 - 100,
-                Math.random() * 200 - 100
+                Math.random() * 300 - 150,
+                Math.random() * 300 - 150
             );
             scene.add(tree);
         }
 
         // Camera setup
-        camera.position.set(0, 12, -10);
+        camera.position.set(0, 17, -10);
         camera.lookAt(bird.position);
 
-        // Game state
+        // Game state with momentum system
         const keys = {};
-        const birdVelocity = new THREE.Vector3(0, 0, 0);
-        let birdRotation = 0;
+        let birdYaw = 0; // Horizontal rotation (left/right)
+        let birdPitch = 0; // Vertical rotation (up/down)
+        let forwardSpeed = 0.3; // Current forward speed
+        const minSpeed = 0.15;
+        const maxSpeed = 0.8;
+        const pitchSpeed = 0.025; // How fast pitch changes
+        const yawSpeed = 0.03; // How fast yaw changes
+        const pitchDecay = 0.92; // How quickly pitch returns to neutral
         let wingFlap = 0;
+        let trailIndex = 0;
 
         // Keyboard controls
         window.addEventListener('keydown', (e) => {
@@ -272,87 +385,124 @@
             renderer.setSize(window.innerWidth, window.innerHeight);
         });
 
-        // Animation loop
+        // Animation loop with momentum-based physics
         function animate() {
             requestAnimationFrame(animate);
 
-            // Bird controls
-            const baseSpeed = 0.15;
-            let currentSpeed = baseSpeed;
-
-            // Speed boost
-            if (keys[' '] || keys['Space']) {
-                currentSpeed *= 2;
-            }
-
-            // Rotation controls
-            if (keys['a'] || keys['ArrowLeft']) {
-                birdRotation += 0.03;
-            }
-            if (keys['d'] || keys['ArrowRight']) {
-                birdRotation -= 0.03;
-            }
-
-            // Up/down controls
+            // Pitch controls (W = up, S = down)
             if (keys['w'] || keys['ArrowUp']) {
-                birdVelocity.y += 0.05;
+                birdPitch += pitchSpeed;
             }
             if (keys['s'] || keys['ArrowDown']) {
-                birdVelocity.y -= 0.05;
+                birdPitch -= pitchSpeed;
             }
 
-            // Apply gravity
-            birdVelocity.y -= 0.02;
-
-            // Limit vertical velocity
-            birdVelocity.y = Math.max(-0.5, Math.min(0.5, birdVelocity.y));
-
-            // Move bird forward in the direction it's facing
-            bird.position.x += Math.sin(birdRotation) * currentSpeed;
-            bird.position.z += Math.cos(birdRotation) * currentSpeed;
-            bird.position.y += birdVelocity.y;
-
-            // Keep bird above ground
-            if (bird.position.y < 1) {
-                bird.position.y = 1;
-                birdVelocity.y = 0;
+            // Apply pitch decay when no input (returns to level flight)
+            if (!keys['w'] && !keys['ArrowUp'] && !keys['s'] && !keys['ArrowDown']) {
+                birdPitch *= pitchDecay;
             }
 
-            // Limit maximum height
-            if (bird.position.y > 50) {
-                bird.position.y = 50;
-                birdVelocity.y = 0;
+            // Limit pitch angle
+            birdPitch = Math.max(-0.8, Math.min(0.8, birdPitch));
+
+            // Yaw controls (A = left, D = right)
+            if (keys['a'] || keys['ArrowLeft']) {
+                birdYaw += yawSpeed;
+            }
+            if (keys['d'] || keys['ArrowRight']) {
+                birdYaw -= yawSpeed;
+            }
+
+            // Speed mechanics based on pitch
+            // Diving (negative pitch) increases speed
+            // Climbing (positive pitch) decreases speed
+            const pitchSpeedEffect = -birdPitch * 0.015;
+            forwardSpeed += pitchSpeedEffect;
+
+            // Speed boost with space
+            let currentSpeed = forwardSpeed;
+            if (keys[' '] || keys['Space']) {
+                currentSpeed *= 1.8;
+            }
+
+            // Clamp speed
+            forwardSpeed = Math.max(minSpeed, Math.min(maxSpeed, forwardSpeed));
+            currentSpeed = Math.max(minSpeed, Math.min(maxSpeed * 1.8, currentSpeed));
+
+            // Calculate movement based on pitch and yaw
+            const pitchCos = Math.cos(birdPitch);
+            const pitchSin = Math.sin(birdPitch);
+
+            // Move bird in 3D space based on orientation
+            bird.position.x += Math.sin(birdYaw) * pitchCos * currentSpeed;
+            bird.position.z += Math.cos(birdYaw) * pitchCos * currentSpeed;
+            bird.position.y += pitchSin * currentSpeed;
+
+            // Keep bird above ground with bounce
+            if (bird.position.y < 2) {
+                bird.position.y = 2;
+                birdPitch = Math.abs(birdPitch) * 0.5; // Bounce up slightly
+            }
+
+            // Soft height ceiling
+            if (bird.position.y > 80) {
+                bird.position.y = 80;
+                birdPitch = Math.min(birdPitch, 0);
             }
 
             // Update bird rotation
-            bird.rotation.y = birdRotation;
-            bird.rotation.x = -birdVelocity.y * 0.5;
+            bird.rotation.y = birdYaw;
+            bird.rotation.x = -birdPitch;
+            bird.rotation.z = -birdYaw * 0.1 + Math.sin(birdYaw) * 0.05; // Banking effect
 
-            // Wing flapping animation
-            wingFlap += 0.2;
-            leftWing.rotation.z = Math.sin(wingFlap) * 0.3;
-            rightWing.rotation.z = -Math.sin(wingFlap) * 0.3;
+            // Dynamic wing flapping based on speed
+            wingFlap += 0.15 + currentSpeed * 0.3;
+            const flapAmount = 0.25 + currentSpeed * 0.15;
+            leftWing.rotation.z = Math.sin(wingFlap) * flapAmount;
+            rightWing.rotation.z = -Math.sin(wingFlap) * flapAmount;
 
-            // Camera follows bird
+            // Update motion trail
+            trailIndex = (trailIndex + 1) % trailLength;
+            trailPoints[trailIndex].copy(bird.position);
+            trail.geometry.setFromPoints(trailPoints);
+            trail.geometry.attributes.position.needsUpdate = true;
+
+            // Camera follows bird with dynamic offset based on speed
+            const cameraDistance = 10 + currentSpeed * 8;
+            const cameraHeight = 3 + Math.abs(birdPitch) * 5;
             const cameraOffset = new THREE.Vector3(
-                Math.sin(birdRotation) * -8,
-                5,
-                Math.cos(birdRotation) * -8
+                Math.sin(birdYaw) * -cameraDistance,
+                cameraHeight,
+                Math.cos(birdYaw) * -cameraDistance
             );
-            camera.position.lerp(bird.position.clone().add(cameraOffset), 0.1);
+            camera.position.lerp(bird.position.clone().add(cameraOffset), 0.08);
             camera.lookAt(bird.position);
 
-            // Move clouds slowly
-            clouds.forEach(cloud => {
-                cloud.position.x += 0.01;
-                if (cloud.position.x > 100) {
-                    cloud.position.x = -100;
+            // Move clouds slowly for parallax effect
+            clouds.forEach((cloud, index) => {
+                cloud.position.x += 0.008;
+                cloud.position.z += Math.sin(index * 0.5) * 0.002;
+                if (cloud.position.x > 150) {
+                    cloud.position.x = -150;
                 }
             });
 
-            // Update stats
+            // Update stats with color coding
+            const speedElement = document.getElementById('speed');
+            const speedValue = currentSpeed.toFixed(3);
+            speedElement.textContent = speedValue;
+
+            // Color code speed
+            if (currentSpeed > 0.5) {
+                speedElement.className = 'speed-indicator high-speed';
+            } else if (currentSpeed < 0.25) {
+                speedElement.className = 'speed-indicator low-speed';
+            } else {
+                speedElement.className = 'speed-indicator';
+            }
+
             document.getElementById('altitude').textContent = Math.round(bird.position.y);
-            document.getElementById('speed').textContent = currentSpeed.toFixed(2);
+            document.getElementById('pitch').textContent = Math.round(birdPitch * 57.3); // Convert to degrees
             document.getElementById('position').textContent =
                 `${Math.round(bird.position.x)}, ${Math.round(bird.position.z)}`;
 
