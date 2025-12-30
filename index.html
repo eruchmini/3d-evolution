@@ -311,20 +311,20 @@
         function createTree(x, z) {
             const tree = new THREE.Group();
 
-            // Trunk
-            const trunkGeometry = new THREE.CylinderGeometry(0.3, 0.5, 6, 12);
+            // Trunk - made much taller
+            const trunkGeometry = new THREE.CylinderGeometry(0.4, 0.6, 12, 12);
             const trunkMaterial = new THREE.MeshStandardMaterial({
                 color: 0x6B4423,
                 roughness: 0.9,
                 metalness: 0
             });
             const trunk = new THREE.Mesh(trunkGeometry, trunkMaterial);
-            trunk.position.y = 3;
+            trunk.position.y = 6;
             trunk.castShadow = true;
             trunk.receiveShadow = true;
             tree.add(trunk);
 
-            // Multiple layers of foliage
+            // Multiple layers of foliage - positioned higher
             const foliageMaterial = new THREE.MeshStandardMaterial({
                 color: 0x1a5f1a,
                 roughness: 0.9,
@@ -332,9 +332,9 @@
             });
 
             for (let i = 0; i < 3; i++) {
-                const foliageGeometry = new THREE.ConeGeometry(2.5 - i * 0.5, 3, 8);
+                const foliageGeometry = new THREE.ConeGeometry(3 - i * 0.5, 4, 8);
                 const foliage = new THREE.Mesh(foliageGeometry, foliageMaterial);
-                foliage.position.y = 5.5 + i * 1.5;
+                foliage.position.y = 11 + i * 2;
                 foliage.castShadow = true;
                 tree.add(foliage);
             }
@@ -451,8 +451,8 @@
         function createRat(x, z) {
             const rat = new THREE.Group();
 
-            // Rat body (elongated sphere)
-            const bodyGeometry = new THREE.SphereGeometry(0.15, 16, 16);
+            // Rat body (elongated sphere) - made 1.5x bigger
+            const bodyGeometry = new THREE.SphereGeometry(0.22, 16, 16);
             bodyGeometry.scale(1.2, 0.8, 1.5);
             const bodyMaterial = new THREE.MeshStandardMaterial({
                 color: 0x5a5a5a,
@@ -460,62 +460,62 @@
                 metalness: 0.1
             });
             const body = new THREE.Mesh(bodyGeometry, bodyMaterial);
-            body.position.y = 0.12;
+            body.position.y = 0.18;
             body.castShadow = true;
             rat.add(body);
 
-            // Rat head
-            const headGeometry = new THREE.SphereGeometry(0.1, 16, 16);
+            // Rat head - made bigger
+            const headGeometry = new THREE.SphereGeometry(0.15, 16, 16);
             const headMaterial = new THREE.MeshStandardMaterial({
                 color: 0x6a6a6a,
                 roughness: 0.8,
                 metalness: 0.1
             });
             const head = new THREE.Mesh(headGeometry, headMaterial);
-            head.position.set(0, 0.14, 0.22);
+            head.position.set(0, 0.21, 0.33);
             head.castShadow = true;
             rat.add(head);
 
-            // Rat ears
-            const earGeometry = new THREE.SphereGeometry(0.05, 8, 8);
+            // Rat ears - made bigger
+            const earGeometry = new THREE.SphereGeometry(0.075, 8, 8);
             const earMaterial = new THREE.MeshStandardMaterial({
                 color: 0xffb6c1,
                 roughness: 0.6,
                 metalness: 0.05
             });
             const leftEar = new THREE.Mesh(earGeometry, earMaterial);
-            leftEar.position.set(-0.07, 0.2, 0.22);
+            leftEar.position.set(-0.1, 0.3, 0.33);
             leftEar.scale.set(1, 1.2, 0.5);
             rat.add(leftEar);
             const rightEar = new THREE.Mesh(earGeometry, earMaterial);
-            rightEar.position.set(0.07, 0.2, 0.22);
+            rightEar.position.set(0.1, 0.3, 0.33);
             rightEar.scale.set(1, 1.2, 0.5);
             rat.add(rightEar);
 
-            // Rat eyes
-            const eyeGeometry = new THREE.SphereGeometry(0.02, 8, 8);
+            // Rat eyes - made bigger
+            const eyeGeometry = new THREE.SphereGeometry(0.03, 8, 8);
             const eyeMaterial = new THREE.MeshStandardMaterial({ color: 0x000000 });
             const leftEye = new THREE.Mesh(eyeGeometry, eyeMaterial);
-            leftEye.position.set(-0.04, 0.16, 0.3);
+            leftEye.position.set(-0.06, 0.24, 0.45);
             rat.add(leftEye);
             const rightEye = new THREE.Mesh(eyeGeometry, eyeMaterial);
-            rightEye.position.set(0.04, 0.16, 0.3);
+            rightEye.position.set(0.06, 0.24, 0.45);
             rat.add(rightEye);
 
-            // Rat nose
-            const noseGeometry = new THREE.SphereGeometry(0.015, 8, 8);
+            // Rat nose - made bigger
+            const noseGeometry = new THREE.SphereGeometry(0.022, 8, 8);
             const noseMaterial = new THREE.MeshStandardMaterial({ color: 0xffb6c1 });
             const nose = new THREE.Mesh(noseGeometry, noseMaterial);
-            nose.position.set(0, 0.14, 0.32);
+            nose.position.set(0, 0.21, 0.48);
             rat.add(nose);
 
-            // Rat tail (curved)
+            // Rat tail (curved) - made bigger
             const tailCurve = new THREE.QuadraticBezierCurve3(
-                new THREE.Vector3(0, 0.08, -0.22),
-                new THREE.Vector3(0.05, 0.08, -0.35),
-                new THREE.Vector3(0, 0.02, -0.5)
+                new THREE.Vector3(0, 0.12, -0.33),
+                new THREE.Vector3(0.075, 0.12, -0.52),
+                new THREE.Vector3(0, 0.03, -0.75)
             );
-            const tailGeometry = new THREE.TubeGeometry(tailCurve, 8, 0.02, 6, false);
+            const tailGeometry = new THREE.TubeGeometry(tailCurve, 8, 0.03, 6, false);
             const tailMaterial = new THREE.MeshStandardMaterial({
                 color: 0x8a8a8a,
                 roughness: 0.8,
@@ -781,7 +781,7 @@
 
             // Update rats behavior
             const FLEE_DISTANCE = 10; // Distance at which rats flee
-            const CATCH_DISTANCE = 1.5; // Distance to catch a rat
+            const CATCH_DISTANCE = 2.5; // Distance to catch a rat (increased for better gameplay)
             const SHADOW_FLEE_DISTANCE = 8; // Distance from shadow to flee
 
             for (let i = rats.length - 1; i >= 0; i--) {
@@ -848,7 +848,7 @@
                 }
 
                 // Check if caught (only when bird is close to ground)
-                if (horizontalDistance < CATCH_DISTANCE && bird.position.y < 3) {
+                if (horizontalDistance < CATCH_DISTANCE && bird.position.y < 5) {
                     rat.userData.isCaught = true;
                     scene.remove(rat);
                     rats.splice(i, 1);
