@@ -87,7 +87,6 @@
             <li><strong>D/→</strong> - Turn right (tilt right)</li>
             <li><strong>Space</strong> - Speed boost</li>
             <li><strong>F</strong> - Toggle 1st/3rd person view</li>
-            <li><strong>Caps Lock</strong> - Lock camera straight</li>
         </ul>
         <p style="margin-top: 10px; font-size: 12px; opacity: 0.8;">
             Tip: Dive to gain speed, climb to slow down! Press F to switch camera views.
@@ -369,7 +368,6 @@
         let wingFlap = 0;
         let trailIndex = 0;
         let bankingAngle = 0; // Current tilt angle when turning
-        let capsLockActive = false; // Camera lock state
         let isFirstPerson = true; // Camera mode: true = first-person, false = third-person
 
         // Keyboard controls
@@ -381,12 +379,6 @@
             if (e.key === 'f' || e.key === 'F') {
                 isFirstPerson = !isFirstPerson;
                 console.log('Camera mode:', isFirstPerson ? 'First Person' : 'Third Person');
-            }
-
-            // Toggle caps lock camera lock with CapsLock key
-            if (e.key === 'CapsLock' || e.code === 'CapsLock') {
-                capsLockActive = !capsLockActive;
-                console.log('Camera lock:', capsLockActive ? 'ON' : 'OFF');
             }
         });
 
@@ -406,26 +398,21 @@
         function animate() {
             requestAnimationFrame(animate);
 
-            // Pitch controls (W = up, S = down) - disabled when caps lock is on
-            if (!capsLockActive) {
-                if (keys['w'] || keys['ArrowUp']) {
-                    birdPitch += pitchSpeed;
-                }
-                if (keys['s'] || keys['ArrowDown']) {
-                    birdPitch -= pitchSpeed;
-                }
+            // Pitch controls (W = up, S = down)
+            if (keys['w'] || keys['ArrowUp']) {
+                birdPitch += pitchSpeed;
+            }
+            if (keys['s'] || keys['ArrowDown']) {
+                birdPitch -= pitchSpeed;
+            }
 
-                // Apply pitch decay when no input (returns to level flight)
-                if (!keys['w'] && !keys['ArrowUp'] && !keys['s'] && !keys['ArrowDown']) {
-                    birdPitch *= pitchDecay;
-                }
-
-                // Limit pitch angle
-                birdPitch = Math.max(-0.8, Math.min(0.8, birdPitch));
-            } else {
-                // When caps lock is on, force level flight
+            // Apply pitch decay when no input (returns to level flight)
+            if (!keys['w'] && !keys['ArrowUp'] && !keys['s'] && !keys['ArrowDown']) {
                 birdPitch *= pitchDecay;
             }
+
+            // Limit pitch angle
+            birdPitch = Math.max(-0.8, Math.min(0.8, birdPitch));
 
             // Yaw controls (A = left, D = right) with banking
             if (keys['a'] || keys['ArrowLeft']) {
