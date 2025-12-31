@@ -131,6 +131,39 @@
             transition: width 0.3s ease;
         }
 
+        #upgradeProgressBar {
+            position: absolute;
+            bottom: 110px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 300px;
+            height: 30px;
+            background: rgba(0, 0, 0, 0.7);
+            border: 2px solid #9933ff;
+            border-radius: 15px;
+            padding: 3px;
+        }
+
+        #upgradeProgressFill {
+            width: 0%;
+            height: 100%;
+            background: linear-gradient(90deg, #6600cc, #9933ff);
+            border-radius: 12px;
+            transition: width 0.3s ease;
+            box-shadow: 0 0 10px #9933ff;
+        }
+
+        #upgradeProgressLabel {
+            position: absolute;
+            bottom: 145px;
+            left: 50%;
+            transform: translateX(-50%);
+            color: #9933ff;
+            font-size: 14px;
+            font-weight: bold;
+            text-shadow: 0 0 5px rgba(153, 51, 255, 0.8);
+        }
+
         #upgradeMenu {
             position: fixed;
             top: 50%;
@@ -255,6 +288,11 @@
 
     <div id="hungerBar">
         <div id="hungerFill"></div>
+    </div>
+
+    <div id="upgradeProgressLabel">⚡ Upgrade Progress ⚡</div>
+    <div id="upgradeProgressBar">
+        <div id="upgradeProgressFill"></div>
     </div>
 
     <div id="underwaterOverlay"></div>
@@ -795,12 +833,13 @@
         const hungerDepletionRate = 0.05; // Passive hunger loss per frame
         const boostHungerCost = 0.8; // Hunger cost per frame when boosting
         const fishHungerGain = 15; // Hunger gained from eating a fish
-        let hasReachedMaxHunger = false; // Track if we've reached max hunger for upgrade point
 
         // Upgrade system
         let upgradePoints = 0;
         let isPaused = false;
         const activeUpgrades = {}; // Track which upgrades are active
+        let upgradeProgress = 0; // Progress toward next upgrade point (0-100)
+        const maxUpgradeProgress = 100; // Amount needed for upgrade point
 
         // All available upgrades
         const allUpgrades = [
@@ -1012,19 +1051,6 @@
             if (isPaused) {
                 renderer.render(scene, camera);
                 return;
-            }
-
-            // Check if hunger reached max for upgrade point
-            if (hunger >= maxHunger && !hasReachedMaxHunger) {
-                hasReachedMaxHunger = true;
-                upgradePoints++;
-                console.log('Max hunger reached! Earned 1 upgrade point. Total:', upgradePoints);
-                showUpgradeMenu();
-            }
-
-            // Reset flag when hunger drops below max
-            if (hunger < maxHunger) {
-                hasReachedMaxHunger = false;
             }
 
             // Animate ocean waves - RANDOM SIZE WAVES!
@@ -1509,10 +1535,41 @@
                     }
                     caughtFishCount += fishCaught;
 
-                    // Increase hunger when eating fish with upgrades
+                    // Calculate hunger gain with upgrades
                     let effectiveFishHunger = fishHungerGain;
                     if (activeUpgrades['fish_value']) effectiveFishHunger *= 1.25; // 25% more
-                    hunger = Math.min(maxHunger, hunger + (effectiveFishHunger * fishCaught));
+                    const totalHungerGain = effectiveFishHunger * fishCaught;
+
+                    // If hunger is already at max, overflow goes to upgrade progress
+                    if (hunger >= maxHunger) {
+                        upgradeProgress += totalHungerGain;
+
+                        // Check if upgrade progress is full
+                        if (upgradeProgress >= maxUpgradeProgress) {
+                            upgradeProgress = 0; // Reset progress
+                            upgradePoints++;
+                            console.log('Upgrade progress full! Earned 1 upgrade point. Total:', upgradePoints);
+                            showUpgradeMenu();
+                        }
+                    } else {
+                        // Normal hunger increase
+                        const previousHunger = hunger;
+                        hunger = Math.min(maxHunger, hunger + totalHungerGain);
+
+                        // If we overfilled hunger, put overflow into upgrade progress
+                        const overflow = (previousHunger + totalHungerGain) - maxHunger;
+                        if (overflow > 0) {
+                            upgradeProgress += overflow;
+
+                            // Check if upgrade progress is full
+                            if (upgradeProgress >= maxUpgradeProgress) {
+                                upgradeProgress = 0; // Reset progress
+                                upgradePoints++;
+                                console.log('Upgrade progress full! Earned 1 upgrade point. Total:', upgradePoints);
+                                showUpgradeMenu();
+                            }
+                        }
+                    }
 
                     // Respawn fish
                     for (let f = 0; f < fishCaught; f++) {
@@ -1690,6 +1747,10 @@
                 `${Math.round(bird.position.x)}, ${Math.round(bird.position.z)}`;
             document.getElementById('caughtFish').textContent = caughtFishCount;
             document.getElementById('hunger').textContent = Math.round(hunger);
+
+            // Update upgrade progress bar
+            const upgradeProgressPercent = (upgradeProgress / maxUpgradeProgress) * 100;
+            document.getElementById('upgradeProgressFill').style.width = upgradeProgressPercent + '%';
 
             renderer.render(scene, camera);
         }
