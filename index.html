@@ -341,10 +341,12 @@
         // Store original positions for wave animation
         const oceanPositions = ocean.geometry.attributes.position;
         const originalPositions = new Float32Array(oceanPositions.count * 3);
+        const waveRandomness = new Float32Array(oceanPositions.count); // Random amplitude for each vertex
         for (let i = 0; i < oceanPositions.count; i++) {
             originalPositions[i * 3] = oceanPositions.getX(i);
             originalPositions[i * 3 + 1] = oceanPositions.getY(i);
             originalPositions[i * 3 + 2] = oceanPositions.getZ(i);
+            waveRandomness[i] = 0.5 + Math.random() * 1.5; // Random multiplier between 0.5 and 2.0
         }
 
         scene.add(ocean);
@@ -506,30 +508,45 @@
 
             // Add custom properties for behavior (boid/flocking)
             fish.userData.velocity = new THREE.Vector3(
-                (Math.random() - 0.5) * 0.3,
                 (Math.random() - 0.5) * 0.15,
-                (Math.random() - 0.5) * 0.3
+                (Math.random() - 0.5) * 0.08,
+                (Math.random() - 0.5) * 0.15
             );
-            fish.userData.swimSpeed = 0.35; // FASTER swimming fish
-            fish.userData.maxSpeed = 0.45; // Much faster fish
+            fish.userData.swimSpeed = 0.18; // Even slower swimming fish
+            fish.userData.maxSpeed = 0.24; // Further reduced max speed
             fish.userData.isCaught = false;
             fish.userData.swimTime = Math.random() * 100;
+            fish.userData.radius = 0.5; // Collision radius for hitbox
 
             return fish;
         }
 
-        // Spawn fish across the ocean - MASSIVE SCHOOLS!
+        // Spawn fish across the ocean - HUGE MASSIVE PACKS!
         const fish = [];
-        const NUM_FISH = 800; // TONS of fish everywhere!
-        for (let i = 0; i < NUM_FISH; i++) {
-            const angle = Math.random() * Math.PI * 2;
-            const distance = Math.random() * 450;
-            const newFish = createFish(
-                Math.cos(angle) * distance,
-                Math.sin(angle) * distance
-            );
-            fish.push(newFish);
-            scene.add(newFish);
+        const NUM_FISH = 1500; // MASSIVE schools of fish!
+
+        // Spawn fish in large clusters for big pack behavior
+        const NUM_CLUSTERS = 20; // Number of major fish schools
+        for (let cluster = 0; cluster < NUM_CLUSTERS; cluster++) {
+            // Each cluster has a center point
+            const clusterAngle = Math.random() * Math.PI * 2;
+            const clusterDistance = Math.random() * 400;
+            const clusterX = Math.cos(clusterAngle) * clusterDistance;
+            const clusterZ = Math.sin(clusterAngle) * clusterDistance;
+
+            // Spawn many fish around this cluster center
+            const fishPerCluster = Math.floor(NUM_FISH / NUM_CLUSTERS);
+            for (let i = 0; i < fishPerCluster; i++) {
+                // Fish spawn close to cluster center
+                const offsetAngle = Math.random() * Math.PI * 2;
+                const offsetDistance = Math.random() * 30; // Cluster radius
+                const newFish = createFish(
+                    clusterX + Math.cos(offsetAngle) * offsetDistance,
+                    clusterZ + Math.sin(offsetAngle) * offsetDistance
+                );
+                fish.push(newFish);
+                scene.add(newFish);
+            }
         }
 
         let caughtFishCount = 0;
@@ -618,7 +635,7 @@
 
             // Add custom properties for behavior
             shark.userData.velocity = new THREE.Vector3(0, 0, 0);
-            shark.userData.swimSpeed = 0.65; // MUCH FASTER sharks - faster than player!
+            shark.userData.swimSpeed = 0.55; // Slightly faster than player for chase tension
             shark.userData.patrolAngle = Math.random() * Math.PI * 2;
             shark.userData.verticalAngle = 0;
             shark.userData.swimTime = Math.random() * 100;
@@ -685,6 +702,16 @@
         let sharkSpawnTimer = 0;
         const sharkSpawnInterval = 600; // Spawn a new shark every ~10 seconds (at 60fps)
 
+        // Fish AI optimization - staggered updates
+        let fishUpdateOffset = 0; // Which group of fish to update this frame
+        const FISH_UPDATE_BATCH_SIZE = 150; // Update 150 fish per frame (10% of 1500)
+
+        // Mouse look controls
+        let isMouseLooking = false;
+        let mouseLookYawOffset = 0; // Horizontal camera rotation offset from mouse
+        let mouseStartX = 0;
+        const mouseSensitivity = 0.008; // How much mouse movement affects camera (higher = more sensitive)
+
         // Keyboard controls
         window.addEventListener('keydown', (e) => {
             keys[e.key.toLowerCase()] = true;
@@ -702,6 +729,38 @@
             keys[e.code] = false;
         });
 
+        // Mouse look controls - hold left or right click to look around
+        window.addEventListener('mousedown', (e) => {
+            // Left click (0) or right click (2)
+            if (e.button === 0 || e.button === 2) {
+                isMouseLooking = true;
+                mouseStartX = e.clientX;
+                e.preventDefault(); // Prevent context menu on right click
+            }
+        });
+
+        window.addEventListener('mouseup', (e) => {
+            if (e.button === 0 || e.button === 2) {
+                isMouseLooking = false;
+                // Smoothly return camera to center
+                mouseLookYawOffset *= 0.9;
+            }
+        });
+
+        window.addEventListener('mousemove', (e) => {
+            if (isMouseLooking) {
+                const deltaX = e.clientX - mouseStartX;
+                mouseLookYawOffset = deltaX * mouseSensitivity;
+                // Limit how far you can look around (approximately 180 degrees left/right)
+                mouseLookYawOffset = Math.max(-Math.PI, Math.min(Math.PI, mouseLookYawOffset));
+            }
+        });
+
+        // Prevent context menu on right click
+        window.addEventListener('contextmenu', (e) => {
+            e.preventDefault();
+        });
+
         // Handle window resize
         window.addEventListener('resize', () => {
             camera.aspect = window.innerWidth / window.innerHeight;
@@ -713,17 +772,18 @@
         function animate() {
             requestAnimationFrame(animate);
 
-            // Animate ocean waves - BIG WAVES!
+            // Animate ocean waves - RANDOM SIZE WAVES!
             waveTime += 0.02;
             for (let i = 0; i < oceanPositions.count; i++) {
                 const x = originalPositions[i * 3];
                 const y = originalPositions[i * 3 + 1];
                 const z = originalPositions[i * 3 + 2];
 
-                // Create wave pattern - MUCH BIGGER WAVES
-                const wave1 = Math.sin(x * 0.05 + waveTime) * 2.5;
-                const wave2 = Math.sin(z * 0.03 + waveTime * 1.3) * 2.0;
-                const wave3 = Math.sin((x + z) * 0.02 + waveTime * 0.8) * 1.5;
+                // Create wave pattern with random amplitudes for varied wave sizes
+                const randomAmp = waveRandomness[i];
+                const wave1 = Math.sin(x * 0.05 + waveTime) * 2.5 * randomAmp;
+                const wave2 = Math.sin(z * 0.03 + waveTime * 1.3) * 2.0 * randomAmp;
+                const wave3 = Math.sin((x + z) * 0.02 + waveTime * 0.8) * 1.5 * randomAmp;
 
                 oceanPositions.setZ(i, wave1 + wave2 + wave3);
             }
@@ -931,6 +991,11 @@
             trail.geometry.setFromPoints(trailPoints);
             trail.geometry.attributes.position.needsUpdate = true;
 
+            // Smoothly decay mouse look offset when not looking
+            if (!isMouseLooking && Math.abs(mouseLookYawOffset) > 0.01) {
+                mouseLookYawOffset *= 0.85;
+            }
+
             // Camera system - toggle between first-person and third-person
             if (isFirstPerson) {
                 // First-person camera positioned at bird's head
@@ -940,25 +1005,25 @@
 
                 camera.position.copy(bird.position.clone().add(headOffset));
 
-                // Camera looks in the direction the bird is facing
+                // Camera looks in the direction modified by mouse look
+                const lookYaw = birdYaw + mouseLookYawOffset;
                 const lookDirection = new THREE.Vector3(
-                    Math.sin(birdYaw) * Math.cos(birdPitch),
+                    Math.sin(lookYaw) * Math.cos(birdPitch),
                     Math.sin(birdPitch),
-                    Math.cos(birdYaw) * Math.cos(birdPitch)
+                    Math.cos(lookYaw) * Math.cos(birdPitch)
                 );
                 const lookTarget = camera.position.clone().add(lookDirection.multiplyScalar(10));
                 camera.lookAt(lookTarget);
             } else {
-                // Third-person camera follows bird from behind
+                // Third-person camera follows bird from behind with mouse look
                 const cameraDistance = 10 + currentSpeed * 8;
-                // Fixed: camera height now properly responds to pitch direction
-                // When pitching up (positive), camera stays level or goes slightly lower
-                // When pitching down (negative), camera goes higher to see over the bird
                 const cameraHeight = 3 - birdPitch * 8;
+                // Apply mouse look offset to camera yaw
+                const cameraYaw = birdYaw + mouseLookYawOffset;
                 const cameraOffset = new THREE.Vector3(
-                    Math.sin(birdYaw) * -cameraDistance,
+                    Math.sin(cameraYaw) * -cameraDistance,
                     cameraHeight,
-                    Math.cos(birdYaw) * -cameraDistance
+                    Math.cos(cameraYaw) * -cameraDistance
                 );
                 camera.position.lerp(bird.position.clone().add(cameraOffset), 0.08);
                 camera.lookAt(bird.position);
@@ -973,12 +1038,16 @@
                 }
             });
 
-            // Update fish behavior - BOID/FLOCKING ALGORITHM
+            // Update fish behavior - OPTIMIZED BOID/FLOCKING ALGORITHM
             const CATCH_DISTANCE = 2.0;
-            const PERCEPTION_RADIUS = 25.0; // HUGE perception for massive schools
+            const PERCEPTION_RADIUS = 15.0; // Reduced for better performance
             const FLEE_RADIUS = 35.0; // Fish can see you from VERY far away!
             const SHARK_ATTRACTION_RADIUS = 20.0; // Stronger shark attraction
-            const SEPARATION_DISTANCE = 1.2; // Even closer together for super dense schools
+            const SEPARATION_DISTANCE = 1.5; // Hitbox distance - fish can't overlap
+
+            // Staggered updates - only update a batch of fish per frame for performance
+            const startIndex = fishUpdateOffset;
+            const endIndex = Math.min(startIndex + FISH_UPDATE_BATCH_SIZE, fish.length);
 
             for (let i = fish.length - 1; i >= 0; i--) {
                 const fishObj = fish[i];
@@ -986,87 +1055,100 @@
 
                 fishObj.userData.swimTime += 0.05;
 
+                // Only do expensive boid calculations for fish in current batch
+                const shouldUpdateBoid = (i >= startIndex && i < endIndex);
+
                 // Calculate distance to player
                 const dx = bird.position.x - fishObj.position.x;
                 const dz = bird.position.z - fishObj.position.z;
                 const dy = bird.position.y - fishObj.position.y;
                 const distanceToBird = Math.sqrt(dx * dx + dz * dz + dy * dy);
 
-                // BOID FORCES
-                const cohesion = new THREE.Vector3(0, 0, 0); // Move towards center of nearby fish
-                const separation = new THREE.Vector3(0, 0, 0); // Avoid crowding
-                const alignment = new THREE.Vector3(0, 0, 0); // Match velocity of nearby fish
-                const fleeForce = new THREE.Vector3(0, 0, 0); // Flee from player
-                const sharkAttraction = new THREE.Vector3(0, 0, 0); // Move towards nearest shark
+                // Only calculate expensive boid forces for fish in current update batch
+                if (shouldUpdateBoid) {
+                    // BOID FORCES
+                    const cohesion = new THREE.Vector3(0, 0, 0); // Move towards center of nearby fish
+                    const separation = new THREE.Vector3(0, 0, 0); // Avoid crowding
+                    const alignment = new THREE.Vector3(0, 0, 0); // Match velocity of nearby fish
+                    const fleeForce = new THREE.Vector3(0, 0, 0); // Flee from player
+                    const sharkAttraction = new THREE.Vector3(0, 0, 0); // Move towards nearest shark
 
-                let nearbyCount = 0;
+                    let nearbyCount = 0;
 
-                // Check nearby fish for flocking behavior
-                for (let j = 0; j < fish.length; j++) {
-                    if (i === j || fish[j].userData.isCaught) continue;
+                    // Check nearby fish for flocking behavior
+                    for (let j = 0; j < fish.length; j++) {
+                        if (i === j || fish[j].userData.isCaught) continue;
 
-                    const other = fish[j];
-                    const dist = fishObj.position.distanceTo(other.position);
+                        const other = fish[j];
+                        const dist = fishObj.position.distanceTo(other.position);
 
-                    if (dist < PERCEPTION_RADIUS) {
-                        // Cohesion - move towards center of mass
-                        cohesion.add(other.position);
+                        if (dist < PERCEPTION_RADIUS) {
+                            // Cohesion - move towards center of mass
+                            cohesion.add(other.position);
 
-                        // Alignment - match velocity
-                        alignment.add(other.userData.velocity);
+                            // Alignment - match velocity
+                            alignment.add(other.userData.velocity);
 
-                        nearbyCount++;
+                            nearbyCount++;
 
-                        // Separation - avoid crowding
-                        if (dist < SEPARATION_DISTANCE && dist > 0) {
-                            const diff = new THREE.Vector3().subVectors(fishObj.position, other.position);
-                            diff.divideScalar(dist); // Weight by distance
-                            separation.add(diff);
+                            // Separation - STRONG collision avoidance using hitbox radius
+                            const minDistance = fishObj.userData.radius + other.userData.radius;
+                            if (dist < SEPARATION_DISTANCE && dist > 0) {
+                                const diff = new THREE.Vector3().subVectors(fishObj.position, other.position);
+                                // Much stronger separation force when fish are too close (collision avoidance)
+                                const separationStrength = dist < minDistance ? 0.5 : 0.15;
+                                diff.divideScalar(dist); // Weight by distance
+                                diff.multiplyScalar(separationStrength);
+                                separation.add(diff);
+                            }
                         }
                     }
-                }
 
-                if (nearbyCount > 0) {
-                    cohesion.divideScalar(nearbyCount);
-                    cohesion.sub(fishObj.position);
-                    cohesion.normalize().multiplyScalar(0.08); // VERY strong cohesion - fish really stick together!
+                    if (nearbyCount > 0) {
+                        cohesion.divideScalar(nearbyCount);
+                        cohesion.sub(fishObj.position);
+                        cohesion.normalize().multiplyScalar(0.08); // VERY strong cohesion - fish really stick together!
 
-                    alignment.divideScalar(nearbyCount);
-                    alignment.normalize().multiplyScalar(0.04); // Strong alignment for synchronized swimming
+                        alignment.divideScalar(nearbyCount);
+                        alignment.normalize().multiplyScalar(0.04); // Strong alignment for synchronized swimming
 
-                    separation.normalize().multiplyScalar(0.035); // Less separation for tighter packing
-                }
-
-                // Flee from player when close
-                if (distanceToBird < FLEE_RADIUS) {
-                    fleeForce.set(-dx, -dy, -dz);
-                    // Flee force gets stronger as you get closer
-                    const fleeStrength = 0.3 * (1 - distanceToBird / FLEE_RADIUS);
-                    fleeForce.normalize().multiplyScalar(0.3 + fleeStrength); // REALLY strong flee
-                }
-
-                // Attraction to nearest shark
-                let nearestSharkDist = Infinity;
-                let nearestShark = null;
-                for (let s = 0; s < sharks.length; s++) {
-                    const sharkDist = fishObj.position.distanceTo(sharks[s].position);
-                    if (sharkDist < nearestSharkDist && sharkDist < SHARK_ATTRACTION_RADIUS) {
-                        nearestSharkDist = sharkDist;
-                        nearestShark = sharks[s];
+                        // Separation is already scaled per-fish above, just normalize the accumulated force
+                        if (separation.length() > 0) {
+                            separation.normalize().multiplyScalar(0.2); // Strong separation to prevent overlap
+                        }
                     }
-                }
 
-                if (nearestShark) {
-                    sharkAttraction.subVectors(nearestShark.position, fishObj.position);
-                    sharkAttraction.normalize().multiplyScalar(0.04); // Stronger shark attraction
-                }
+                    // Flee from player when close
+                    if (distanceToBird < FLEE_RADIUS) {
+                        fleeForce.set(-dx, -dy, -dz);
+                        // Flee force gets stronger as you get closer
+                        const fleeStrength = 0.3 * (1 - distanceToBird / FLEE_RADIUS);
+                        fleeForce.normalize().multiplyScalar(0.3 + fleeStrength); // REALLY strong flee
+                    }
 
-                // Apply all forces to velocity
-                fishObj.userData.velocity.add(cohesion);
-                fishObj.userData.velocity.add(separation);
-                fishObj.userData.velocity.add(alignment);
-                fishObj.userData.velocity.add(fleeForce);
-                fishObj.userData.velocity.add(sharkAttraction);
+                    // Attraction to nearest shark
+                    let nearestSharkDist = Infinity;
+                    let nearestShark = null;
+                    for (let s = 0; s < sharks.length; s++) {
+                        const sharkDist = fishObj.position.distanceTo(sharks[s].position);
+                        if (sharkDist < nearestSharkDist && sharkDist < SHARK_ATTRACTION_RADIUS) {
+                            nearestSharkDist = sharkDist;
+                            nearestShark = sharks[s];
+                        }
+                    }
+
+                    if (nearestShark) {
+                        sharkAttraction.subVectors(nearestShark.position, fishObj.position);
+                        sharkAttraction.normalize().multiplyScalar(0.04); // Stronger shark attraction
+                    }
+
+                    // Apply all forces to velocity
+                    fishObj.userData.velocity.add(cohesion);
+                    fishObj.userData.velocity.add(separation);
+                    fishObj.userData.velocity.add(alignment);
+                    fishObj.userData.velocity.add(fleeForce);
+                    fishObj.userData.velocity.add(sharkAttraction);
+                }
 
                 // Limit speed
                 const speed = fishObj.userData.velocity.length();
@@ -1135,6 +1217,12 @@
                 }
             }
 
+            // Update batch offset for next frame (cycle through all fish)
+            fishUpdateOffset += FISH_UPDATE_BATCH_SIZE;
+            if (fishUpdateOffset >= fish.length) {
+                fishUpdateOffset = 0;
+            }
+
             // Update shark behavior
             const SHARK_ATTACK_DISTANCE = 3.5; // Distance at which shark attacks
             const SHARK_CHASE_DISTANCE = 60; // Sharks can see you from VERY far away!
@@ -1160,8 +1248,8 @@
                     shark.userData.patrolAngle = chaseAngle;
                     shark.userData.verticalAngle = verticalChase;
 
-                    // Sharks swim MUCH faster when chasing - terrifying speed!
-                    const chaseSpeed = shark.userData.swimSpeed * 1.5;
+                    // Sharks swim faster when chasing - scary!
+                    const chaseSpeed = shark.userData.swimSpeed * 1.4;
                     shark.position.x += Math.sin(chaseAngle) * chaseSpeed;
                     shark.position.z += Math.cos(chaseAngle) * chaseSpeed;
                     shark.position.y += Math.sin(verticalChase) * chaseSpeed * 0.5;
@@ -1239,6 +1327,7 @@
                     birdPitch = 0;
                     birdYaw = 0;
                     airTime = maxAirTime;
+                    hunger = maxHunger; // Reset hunger to max on death
 
                     // Lose half of caught fish
                     const fishLost = Math.floor(caughtFishCount / 2);
