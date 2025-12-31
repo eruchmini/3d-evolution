@@ -113,17 +113,17 @@
 </head>
 <body>
     <div id="instructions">
-        <h2>🐦 Ocean Diving Game</h2>
+        <h2>🗡️ Swordfish Hunter</h2>
         <ul>
             <li><strong>W/↑</strong> - Pitch up</li>
-            <li><strong>S/↓</strong> - Pitch down / Dive underwater</li>
+            <li><strong>S/↓</strong> - Pitch down</li>
             <li><strong>A/←</strong> - Turn left</li>
             <li><strong>D/→</strong> - Turn right</li>
             <li><strong>Space</strong> - Speed boost</li>
             <li><strong>F</strong> - Toggle 1st/3rd person view</li>
         </ul>
         <p style="margin-top: 10px; font-size: 12px; opacity: 0.8;">
-            Dive into the ocean to catch fish! Watch your oxygen bar underwater.
+            You're a swordfish! Hunt fish in schools, avoid sharks, and jump out of water for short bursts!
         </p>
     </div>
 
@@ -182,103 +182,117 @@
         const hemisphereLight = new THREE.HemisphereLight(0x87CEEB, 0x228B22, 0.5);
         scene.add(hemisphereLight);
 
-        // Create bird with improved materials
+        // Create swordfish (player)
         const bird = new THREE.Group();
 
-        // Bird body with better material
-        const bodyGeometry = new THREE.SphereGeometry(0.5, 32, 32);
-        bodyGeometry.scale(1, 0.8, 1.2);
+        // Swordfish body (streamlined)
+        const bodyGeometry = new THREE.SphereGeometry(0.4, 32, 32);
+        bodyGeometry.scale(1, 0.9, 2.5);
         const bodyMaterial = new THREE.MeshStandardMaterial({
-            color: 0xFF6B6B,
-            metalness: 0.1,
-            roughness: 0.6,
-            emissive: 0x330000,
+            color: 0x1E40AF, // Deep blue
+            metalness: 0.6,
+            roughness: 0.3,
+            emissive: 0x0000FF,
             emissiveIntensity: 0.1
         });
         const body = new THREE.Mesh(bodyGeometry, bodyMaterial);
         body.castShadow = true;
         bird.add(body);
 
-        // Bird head
-        const headGeometry = new THREE.SphereGeometry(0.3, 32, 32);
-        const headMaterial = new THREE.MeshStandardMaterial({
-            color: 0xFF8C8C,
-            metalness: 0.1,
-            roughness: 0.6
-        });
-        const head = new THREE.Mesh(headGeometry, headMaterial);
-        head.position.set(0, 0.2, 0.6);
-        head.castShadow = true;
-        bird.add(head);
-
-        // Bird eyes
-        const eyeGeometry = new THREE.SphereGeometry(0.08, 16, 16);
-        const eyeMaterial = new THREE.MeshStandardMaterial({ color: 0x000000 });
-        const leftEye = new THREE.Mesh(eyeGeometry, eyeMaterial);
-        leftEye.position.set(-0.12, 0.25, 0.75);
-        bird.add(leftEye);
-        const rightEye = new THREE.Mesh(eyeGeometry, eyeMaterial);
-        rightEye.position.set(0.12, 0.25, 0.75);
-        bird.add(rightEye);
-
-        // Bird beak
-        const beakGeometry = new THREE.ConeGeometry(0.1, 0.35, 8);
-        const beakMaterial = new THREE.MeshStandardMaterial({
-            color: 0xFFD700,
-            metalness: 0.3,
+        // Swordfish underbelly (lighter)
+        const bellyGeometry = new THREE.SphereGeometry(0.35, 32, 32);
+        bellyGeometry.scale(1, 0.7, 2.2);
+        const bellyMaterial = new THREE.MeshStandardMaterial({
+            color: 0xE0E7FF, // Light blue
+            metalness: 0.5,
             roughness: 0.4
         });
-        const beak = new THREE.Mesh(beakGeometry, beakMaterial);
-        beak.position.set(0, 0.2, 0.9);
-        beak.rotation.x = Math.PI / 2;
-        bird.add(beak);
+        const belly = new THREE.Mesh(bellyGeometry, bellyMaterial);
+        belly.position.y = -0.2;
+        bird.add(belly);
 
-        // Enhanced wings
-        const wingGeometry = new THREE.BoxGeometry(1.4, 0.08, 0.7);
-        const wingMaterial = new THREE.MeshStandardMaterial({
-            color: 0xFF5252,
-            metalness: 0.2,
-            roughness: 0.5,
-            emissive: 0x330000,
-            emissiveIntensity: 0.1
+        // Sword/Bill (long pointed nose)
+        const swordGeometry = new THREE.ConeGeometry(0.08, 1.5, 8);
+        const swordMaterial = new THREE.MeshStandardMaterial({
+            color: 0x6B7280,
+            metalness: 0.8,
+            roughness: 0.2
         });
-        const leftWing = new THREE.Mesh(wingGeometry, wingMaterial);
-        leftWing.position.set(-0.8, 0, 0);
+        const sword = new THREE.Mesh(swordGeometry, swordMaterial);
+        sword.position.set(0, 0, 1.5);
+        sword.rotation.x = Math.PI / 2;
+        sword.castShadow = true;
+        bird.add(sword);
+
+        // Swordfish eyes
+        const eyeGeometry = new THREE.SphereGeometry(0.1, 16, 16);
+        const eyeMaterial = new THREE.MeshStandardMaterial({ color: 0xFFFFFF });
+        const leftEye = new THREE.Mesh(eyeGeometry, eyeMaterial);
+        leftEye.position.set(-0.25, 0.2, 0.7);
+        bird.add(leftEye);
+        const rightEye = new THREE.Mesh(eyeGeometry, eyeMaterial);
+        rightEye.position.set(0.25, 0.2, 0.7);
+        bird.add(rightEye);
+
+        // Eye pupils
+        const pupilGeometry = new THREE.SphereGeometry(0.05, 16, 16);
+        const pupilMaterial = new THREE.MeshStandardMaterial({ color: 0x000000 });
+        const leftPupil = new THREE.Mesh(pupilGeometry, pupilMaterial);
+        leftPupil.position.set(-0.25, 0.2, 0.75);
+        bird.add(leftPupil);
+        const rightPupil = new THREE.Mesh(pupilGeometry, pupilMaterial);
+        rightPupil.position.set(0.25, 0.2, 0.75);
+        bird.add(rightPupil);
+
+        // Dorsal fin
+        const dorsalFinGeometry = new THREE.ConeGeometry(0.25, 0.8, 8);
+        const finMaterial = new THREE.MeshStandardMaterial({
+            color: 0x1E40AF,
+            metalness: 0.5,
+            roughness: 0.4
+        });
+        const dorsalFin = new THREE.Mesh(dorsalFinGeometry, finMaterial);
+        dorsalFin.position.set(0, 0.6, -0.3);
+        dorsalFin.rotation.x = Math.PI;
+        dorsalFin.castShadow = true;
+        bird.add(dorsalFin);
+
+        // Pectoral fins (side fins)
+        const pectoralFinGeometry = new THREE.ConeGeometry(0.2, 0.6, 8);
+        const leftWing = new THREE.Mesh(pectoralFinGeometry, finMaterial);
+        leftWing.position.set(-0.4, 0, 0.2);
+        leftWing.rotation.z = Math.PI / 2.5;
         leftWing.castShadow = true;
         bird.add(leftWing);
 
-        const rightWing = new THREE.Mesh(wingGeometry, wingMaterial);
-        rightWing.position.set(0.8, 0, 0);
+        const rightWing = new THREE.Mesh(pectoralFinGeometry, finMaterial);
+        rightWing.position.set(0.4, 0, 0.2);
+        rightWing.rotation.z = -Math.PI / 2.5;
         rightWing.castShadow = true;
         bird.add(rightWing);
 
-        // Tail feathers
-        const tailGeometry = new THREE.ConeGeometry(0.35, 0.7, 8);
-        const tailMaterial = new THREE.MeshStandardMaterial({
-            color: 0xFF5252,
-            metalness: 0.2,
-            roughness: 0.5
-        });
-        const tail = new THREE.Mesh(tailGeometry, tailMaterial);
-        tail.position.set(0, 0, -0.9);
+        // Tail fin (crescent shaped)
+        const tailGeometry = new THREE.ConeGeometry(0.45, 1.0, 8);
+        const tail = new THREE.Mesh(tailGeometry, finMaterial);
+        tail.position.set(0, 0, -1.2);
         tail.rotation.x = Math.PI / 2;
         tail.castShadow = true;
         bird.add(tail);
 
-        bird.position.set(0, 15, 0);
+        bird.position.set(0, -5, 0); // Start underwater
         scene.add(bird);
 
         // Motion trail
         const trailPoints = [];
         const trailLength = 20;
         for (let i = 0; i < trailLength; i++) {
-            trailPoints.push(new THREE.Vector3(0, 15, 0));
+            trailPoints.push(new THREE.Vector3(0, -5, 0));
         }
         const trailGeometry = new THREE.BufferGeometry().setFromPoints(trailPoints);
         const trailMaterial = new THREE.LineBasicMaterial({
-            color: 0xFF6B6B,
+            color: 0x1E40AF, // Blue swordfish trail
             transparent: true,
-            opacity: 0.3,
+            opacity: 0.4,
             linewidth: 2
         });
         const trail = new THREE.Line(trailGeometry, trailMaterial);
@@ -464,12 +478,14 @@
             const depth = -2 - Math.random() * 10; // Between -2 and -12 meters
             fish.position.set(x, depth, z);
 
-            // Add custom properties for behavior
-            fish.userData.velocity = new THREE.Vector3(0, 0, 0);
-            fish.userData.swimSpeed = 0.08;
-            fish.userData.wanderSpeed = 0.03;
-            fish.userData.wanderAngle = Math.random() * Math.PI * 2;
-            fish.userData.verticalAngle = (Math.random() - 0.5) * 0.5;
+            // Add custom properties for behavior (boid/flocking)
+            fish.userData.velocity = new THREE.Vector3(
+                (Math.random() - 0.5) * 0.2,
+                (Math.random() - 0.5) * 0.1,
+                (Math.random() - 0.5) * 0.2
+            );
+            fish.userData.swimSpeed = 0.18; // Fast swimming fish
+            fish.userData.maxSpeed = 0.22; // Slightly slower than player
             fish.userData.isCaught = false;
             fish.userData.swimTime = Math.random() * 100;
 
@@ -585,22 +601,24 @@
             return shark;
         }
 
-        // Spawn a few sharks
+        // Spawn many sharks
         const sharks = [];
-        const NUM_SHARKS = 4; // Just a couple of sharks
+        const NUM_SHARKS = 15; // Lots of sharks!
         for (let i = 0; i < NUM_SHARKS; i++) {
             const angle = Math.random() * Math.PI * 2;
-            const distance = Math.random() * 300 + 100; // Keep them spread out
+            const distance = Math.random() * 350 + 50;
             const newShark = createShark(
                 Math.cos(angle) * distance,
                 Math.sin(angle) * distance
             );
+            // Vary shark starting depths to make them more visible
+            newShark.position.y = -3 - Math.random() * 8; // Between -3 and -11
             sharks.push(newShark);
             scene.add(newShark);
         }
 
         // Camera setup
-        camera.position.set(0, 17, -10);
+        camera.position.set(0, -3, -10);
         camera.lookAt(bird.position);
 
         // Game state with momentum system
@@ -618,14 +636,14 @@
         let trailIndex = 0;
         let bankingAngle = 0; // Current tilt angle when turning
         let isFirstPerson = true; // Camera mode: true = first-person, false = third-person
-        let previousPosition = new THREE.Vector3(0, 15, 0); // Track previous position for velocity calculation
+        let previousPosition = new THREE.Vector3(0, -5, 0); // Track previous position for velocity calculation
 
-        // Underwater / diving mechanics
+        // Underwater / jumping mechanics
         let isUnderwater = false;
-        let oxygen = 100; // Oxygen level (0-100)
-        const maxOxygen = 100;
-        const oxygenDepletionRate = 0.12; // Per frame (reduced from 0.3 for longer breath)
-        const oxygenRecoveryRate = 1.5; // Per frame when above water (faster recovery)
+        let airTime = 100; // Air time when above water (0-100)
+        const maxAirTime = 100;
+        const airTimeDepletionRate = 0.5; // Per frame when above water
+        const airTimeRecoveryRate = 2.0; // Per frame when underwater (quick recovery)
         let waveTime = 0; // For wave animation
 
         // Keyboard controls
@@ -676,25 +694,27 @@
             // Check if underwater
             isUnderwater = bird.position.y < 0;
 
-            // Oxygen system
-            if (isUnderwater) {
-                oxygen = Math.max(0, oxygen - oxygenDepletionRate);
+            // Air time system (for jumping out of water)
+            if (!isUnderwater) {
+                // Above water - deplete air time
+                airTime = Math.max(0, airTime - airTimeDepletionRate);
                 document.getElementById('oxygenBar').style.display = 'block';
 
-                // Death if oxygen runs out
-                if (oxygen <= 0) {
-                    bird.position.y = 0.5; // Force surface
-                    oxygen = 0;
+                // Force back underwater if air time runs out
+                if (airTime <= 0) {
+                    bird.position.y = -0.5; // Force underwater
+                    airTime = 0;
                 }
             } else {
-                oxygen = Math.min(maxOxygen, oxygen + oxygenRecoveryRate);
-                if (oxygen >= maxOxygen) {
+                // Underwater - recover air time
+                airTime = Math.min(maxAirTime, airTime + airTimeRecoveryRate);
+                if (airTime >= maxAirTime) {
                     document.getElementById('oxygenBar').style.display = 'none';
                 }
             }
 
-            // Update oxygen bar
-            document.getElementById('oxygenFill').style.width = oxygen + '%';
+            // Update air time bar
+            document.getElementById('oxygenFill').style.width = airTime + '%';
 
             // Update underwater overlay and fog
             const overlay = document.getElementById('underwaterOverlay');
@@ -758,9 +778,9 @@
                 currentSpeed *= 1.8;
             }
 
-            // Reduce speed when underwater
+            // Much faster underwater!
             if (isUnderwater) {
-                currentSpeed *= 0.5; // 50% speed reduction underwater
+                currentSpeed *= 2.5; // 150% speed INCREASE underwater
             }
 
             // Clamp speed
@@ -818,11 +838,11 @@
             // Store current position for next frame's velocity calculation
             previousPosition.copy(bird.position);
 
-            // Dynamic wing flapping based on speed
-            wingFlap += 0.15 + currentSpeed * 0.3;
-            const flapAmount = 0.25 + currentSpeed * 0.15;
-            leftWing.rotation.z = Math.sin(wingFlap) * flapAmount;
-            rightWing.rotation.z = -Math.sin(wingFlap) * flapAmount;
+            // Animate swordfish fins based on speed
+            wingFlap += 0.1 + currentSpeed * 0.2;
+            const flapAmount = 0.15 + currentSpeed * 0.1;
+            leftWing.rotation.z = Math.sin(wingFlap) * flapAmount + Math.PI / 2.5;
+            rightWing.rotation.z = -Math.sin(wingFlap) * flapAmount - Math.PI / 2.5;
 
             // Update motion trail
             trailIndex = (trailIndex + 1) % trailLength;
@@ -872,32 +892,107 @@
                 }
             });
 
-            // Update fish behavior
-            const CATCH_DISTANCE = 2.0; // Distance to catch a fish
+            // Update fish behavior - BOID/FLOCKING ALGORITHM
+            const CATCH_DISTANCE = 2.0;
+            const PERCEPTION_RADIUS = 8.0; // How far fish can see other fish
+            const FLEE_RADIUS = 12.0; // Distance to flee from player
+            const SHARK_ATTRACTION_RADIUS = 15.0; // Distance to be attracted to sharks
+            const SEPARATION_DISTANCE = 2.0; // Minimum distance between fish
 
             for (let i = fish.length - 1; i >= 0; i--) {
                 const fishObj = fish[i];
                 if (fishObj.userData.isCaught) continue;
 
-                // Animate fish swimming
                 fishObj.userData.swimTime += 0.05;
 
-                // Calculate distance to bird (3D)
+                // Calculate distance to player
                 const dx = bird.position.x - fishObj.position.x;
                 const dz = bird.position.z - fishObj.position.z;
                 const dy = bird.position.y - fishObj.position.y;
                 const distanceToBird = Math.sqrt(dx * dx + dz * dz + dy * dy);
 
-                // Fish swim in wandering patterns underwater
-                fishObj.userData.wanderAngle += (Math.random() - 0.5) * 0.1;
-                fishObj.userData.verticalAngle += (Math.random() - 0.5) * 0.05;
-                fishObj.userData.verticalAngle = Math.max(-0.3, Math.min(0.3, fishObj.userData.verticalAngle));
+                // BOID FORCES
+                const cohesion = new THREE.Vector3(0, 0, 0); // Move towards center of nearby fish
+                const separation = new THREE.Vector3(0, 0, 0); // Avoid crowding
+                const alignment = new THREE.Vector3(0, 0, 0); // Match velocity of nearby fish
+                const fleeForce = new THREE.Vector3(0, 0, 0); // Flee from player
+                const sharkAttraction = new THREE.Vector3(0, 0, 0); // Move towards nearest shark
 
-                // Move fish in 3D space
-                const swimSpeed = fishObj.userData.wanderSpeed;
-                fishObj.position.x += Math.cos(fishObj.userData.wanderAngle) * swimSpeed;
-                fishObj.position.z += Math.sin(fishObj.userData.wanderAngle) * swimSpeed;
-                fishObj.position.y += Math.sin(fishObj.userData.verticalAngle) * swimSpeed * 0.5;
+                let nearbyCount = 0;
+
+                // Check nearby fish for flocking behavior
+                for (let j = 0; j < fish.length; j++) {
+                    if (i === j || fish[j].userData.isCaught) continue;
+
+                    const other = fish[j];
+                    const dist = fishObj.position.distanceTo(other.position);
+
+                    if (dist < PERCEPTION_RADIUS) {
+                        // Cohesion - move towards center of mass
+                        cohesion.add(other.position);
+
+                        // Alignment - match velocity
+                        alignment.add(other.userData.velocity);
+
+                        nearbyCount++;
+
+                        // Separation - avoid crowding
+                        if (dist < SEPARATION_DISTANCE && dist > 0) {
+                            const diff = new THREE.Vector3().subVectors(fishObj.position, other.position);
+                            diff.divideScalar(dist); // Weight by distance
+                            separation.add(diff);
+                        }
+                    }
+                }
+
+                if (nearbyCount > 0) {
+                    cohesion.divideScalar(nearbyCount);
+                    cohesion.sub(fishObj.position);
+                    cohesion.normalize().multiplyScalar(0.02);
+
+                    alignment.divideScalar(nearbyCount);
+                    alignment.normalize().multiplyScalar(0.01);
+
+                    separation.normalize().multiplyScalar(0.03);
+                }
+
+                // Flee from player when close
+                if (distanceToBird < FLEE_RADIUS) {
+                    fleeForce.set(-dx, -dy, -dz);
+                    fleeForce.normalize().multiplyScalar(0.15); // Strong flee force
+                }
+
+                // Attraction to nearest shark
+                let nearestSharkDist = Infinity;
+                let nearestShark = null;
+                for (let s = 0; s < sharks.length; s++) {
+                    const sharkDist = fishObj.position.distanceTo(sharks[s].position);
+                    if (sharkDist < nearestSharkDist && sharkDist < SHARK_ATTRACTION_RADIUS) {
+                        nearestSharkDist = sharkDist;
+                        nearestShark = sharks[s];
+                    }
+                }
+
+                if (nearestShark) {
+                    sharkAttraction.subVectors(nearestShark.position, fishObj.position);
+                    sharkAttraction.normalize().multiplyScalar(0.025);
+                }
+
+                // Apply all forces to velocity
+                fishObj.userData.velocity.add(cohesion);
+                fishObj.userData.velocity.add(separation);
+                fishObj.userData.velocity.add(alignment);
+                fishObj.userData.velocity.add(fleeForce);
+                fishObj.userData.velocity.add(sharkAttraction);
+
+                // Limit speed
+                const speed = fishObj.userData.velocity.length();
+                if (speed > fishObj.userData.maxSpeed) {
+                    fishObj.userData.velocity.normalize().multiplyScalar(fishObj.userData.maxSpeed);
+                }
+
+                // Apply velocity to position
+                fishObj.position.add(fishObj.userData.velocity);
 
                 // Keep fish underwater in shallow ocean (between -13 and -2 meters)
                 if (fishObj.position.y > -2) {
@@ -920,9 +1015,14 @@
                     fishObj.userData.wanderAngle = -fishObj.userData.wanderAngle;
                 }
 
-                // Update fish rotation to face movement direction
-                fishObj.rotation.y = fishObj.userData.wanderAngle;
-                fishObj.rotation.x = fishObj.userData.verticalAngle;
+                // Update fish rotation to face velocity direction
+                if (fishObj.userData.velocity.length() > 0.01) {
+                    const velocityAngle = Math.atan2(fishObj.userData.velocity.x, fishObj.userData.velocity.z);
+                    const verticalAngle = Math.atan2(fishObj.userData.velocity.y,
+                        Math.sqrt(fishObj.userData.velocity.x ** 2 + fishObj.userData.velocity.z ** 2));
+                    fishObj.rotation.y = velocityAngle;
+                    fishObj.rotation.x = -verticalAngle;
+                }
 
                 // Animate fish tail and fins
                 const tailWag = Math.sin(fishObj.userData.swimTime * 5) * 0.3;
@@ -1011,19 +1111,19 @@
                     shark.children[7].rotation.y = tailWag;
                 }
 
-                // Check if shark caught the bird (game over)
+                // Check if shark caught the swordfish (game over)
                 if (distanceToBird < SHARK_ATTACK_DISTANCE && isUnderwater) {
-                    // Shark attack! Reset bird position and lose some fish
-                    bird.position.set(0, 15, 0);
+                    // Shark attack! Reset position and lose some fish
+                    bird.position.set(0, -5, 0);
                     birdPitch = 0;
                     birdYaw = 0;
-                    oxygen = maxOxygen;
+                    airTime = maxAirTime;
 
                     // Lose half of caught fish
                     const fishLost = Math.floor(caughtFishCount / 2);
                     caughtFishCount -= fishLost;
 
-                    // Visual feedback - could add alert
+                    // Visual feedback
                     console.log("Shark attack! Lost " + fishLost + " fish!");
                 }
             }
