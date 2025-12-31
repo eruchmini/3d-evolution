@@ -344,11 +344,13 @@
         }
 
         // Add trees with better distribution
+        const trees = [];
         for (let i = 0; i < 40; i++) {
             const tree = createTree(
                 Math.random() * 300 - 150,
                 Math.random() * 300 - 150
             );
+            trees.push(tree);
             scene.add(tree);
         }
 
@@ -501,6 +503,7 @@
             const rat = new THREE.Group();
 
             // Rat body (elongated sphere) - made 1.5x bigger
+            // Y positions offset by -2.5 to appear grounded while avoiding terrain clipping
             const bodyGeometry = new THREE.SphereGeometry(0.22, 16, 16);
             bodyGeometry.scale(1.2, 0.8, 1.5);
             const bodyMaterial = new THREE.MeshStandardMaterial({
@@ -509,7 +512,7 @@
                 metalness: 0.1
             });
             const body = new THREE.Mesh(bodyGeometry, bodyMaterial);
-            body.position.y = 0.18;
+            body.position.y = 0.18 - 2.5;
             body.castShadow = true;
             rat.add(body);
 
@@ -521,7 +524,7 @@
                 metalness: 0.1
             });
             const head = new THREE.Mesh(headGeometry, headMaterial);
-            head.position.set(0, 0.21, 0.33);
+            head.position.set(0, 0.21 - 2.5, 0.33);
             head.castShadow = true;
             rat.add(head);
 
@@ -533,11 +536,11 @@
                 metalness: 0.05
             });
             const leftEar = new THREE.Mesh(earGeometry, earMaterial);
-            leftEar.position.set(-0.1, 0.3, 0.33);
+            leftEar.position.set(-0.1, 0.3 - 2.5, 0.33);
             leftEar.scale.set(1, 1.2, 0.5);
             rat.add(leftEar);
             const rightEar = new THREE.Mesh(earGeometry, earMaterial);
-            rightEar.position.set(0.1, 0.3, 0.33);
+            rightEar.position.set(0.1, 0.3 - 2.5, 0.33);
             rightEar.scale.set(1, 1.2, 0.5);
             rat.add(rightEar);
 
@@ -545,24 +548,24 @@
             const eyeGeometry = new THREE.SphereGeometry(0.03, 8, 8);
             const eyeMaterial = new THREE.MeshStandardMaterial({ color: 0x000000 });
             const leftEye = new THREE.Mesh(eyeGeometry, eyeMaterial);
-            leftEye.position.set(-0.06, 0.24, 0.45);
+            leftEye.position.set(-0.06, 0.24 - 2.5, 0.45);
             rat.add(leftEye);
             const rightEye = new THREE.Mesh(eyeGeometry, eyeMaterial);
-            rightEye.position.set(0.06, 0.24, 0.45);
+            rightEye.position.set(0.06, 0.24 - 2.5, 0.45);
             rat.add(rightEye);
 
             // Rat nose - made bigger
             const noseGeometry = new THREE.SphereGeometry(0.022, 8, 8);
             const noseMaterial = new THREE.MeshStandardMaterial({ color: 0xffb6c1 });
             const nose = new THREE.Mesh(noseGeometry, noseMaterial);
-            nose.position.set(0, 0.21, 0.48);
+            nose.position.set(0, 0.21 - 2.5, 0.48);
             rat.add(nose);
 
             // Rat tail (curved) - made bigger
             const tailCurve = new THREE.QuadraticBezierCurve3(
-                new THREE.Vector3(0, 0.12, -0.33),
-                new THREE.Vector3(0.075, 0.12, -0.52),
-                new THREE.Vector3(0, 0.03, -0.75)
+                new THREE.Vector3(0, 0.12 - 2.5, -0.33),
+                new THREE.Vector3(0.075, 0.12 - 2.5, -0.52),
+                new THREE.Vector3(0, 0.03 - 2.5, -0.75)
             );
             const tailGeometry = new THREE.TubeGeometry(tailCurve, 8, 0.03, 6, false);
             const tailMaterial = new THREE.MeshStandardMaterial({
@@ -606,6 +609,10 @@
         }
 
         let caughtRatsCount = 0;
+        let isDead = false;
+        let deathTimer = 0;
+        const RESPAWN_DELAY = 2000; // 2 seconds in milliseconds
+        let deathStartTime = 0;
 
         // Camera setup
         camera.position.set(0, 17, -10);
@@ -655,6 +662,38 @@
         // Animation loop with momentum-based physics
         function animate() {
             requestAnimationFrame(animate);
+
+            // Handle death and respawn
+            if (isDead) {
+                const currentTime = Date.now();
+                const elapsedTime = currentTime - deathStartTime;
+
+                if (elapsedTime >= RESPAWN_DELAY) {
+                    // Respawn
+                    bird.position.set(0, 15, 0);
+                    birdYaw = 0;
+                    birdPitch = 0;
+                    forwardSpeed = 0.3;
+                    bankingAngle = 0;
+                    isDead = false;
+                } else {
+                    // During death, make bird fall and spin
+                    bird.position.y -= 0.1;
+                    bird.rotation.z += 0.1;
+                    bird.rotation.x += 0.05;
+
+                    // Update camera to watch the death
+                    const cameraDistance = 15;
+                    camera.position.lerp(
+                        bird.position.clone().add(new THREE.Vector3(0, 5, -cameraDistance)),
+                        0.05
+                    );
+                    camera.lookAt(bird.position);
+
+                    renderer.render(scene, camera);
+                    return; // Skip rest of animation loop
+                }
+            }
 
             // Pitch controls (W = up, S = down)
             if (keys['w'] || keys['ArrowUp']) {
@@ -747,10 +786,29 @@
                 }
             }
 
-            // Keep bird above ground with bounce
-            if (bird.position.y < 2) {
-                bird.position.y = 2;
-                birdPitch = Math.abs(birdPitch) * 0.5; // Bounce up slightly
+            // Ground collision - kill bird if too low
+            if (bird.position.y < 1.5 && !isDead) {
+                isDead = true;
+                deathStartTime = Date.now();
+            }
+
+            // Tree collision detection
+            if (!isDead) {
+                const TREE_COLLISION_RADIUS = 2.5; // Collision radius around tree
+                const TREE_COLLISION_HEIGHT = 12; // Trees are 12 units tall
+                for (let i = 0; i < trees.length; i++) {
+                    const tree = trees[i];
+                    const dx = bird.position.x - tree.position.x;
+                    const dz = bird.position.z - tree.position.z;
+                    const horizontalDistance = Math.sqrt(dx * dx + dz * dz);
+
+                    // Check if bird is within tree's horizontal radius and below tree top
+                    if (horizontalDistance < TREE_COLLISION_RADIUS && bird.position.y < TREE_COLLISION_HEIGHT) {
+                        isDead = true;
+                        deathStartTime = Date.now();
+                        break;
+                    }
+                }
             }
 
             // Global height ceiling (for areas away from mountains)
@@ -840,7 +898,33 @@
 
             for (let i = rats.length - 1; i >= 0; i--) {
                 const rat = rats[i];
-                if (rat.userData.isCaught) continue;
+
+                // Handle catch animation
+                if (rat.userData.isCaught) {
+                    // Animate rat flying up and spinning toward bird
+                    const toBird = new THREE.Vector3(
+                        bird.position.x - rat.position.x,
+                        bird.position.y - rat.position.y,
+                        bird.position.z - rat.position.z
+                    );
+                    toBird.normalize().multiplyScalar(0.5);
+
+                    rat.position.add(toBird);
+                    rat.rotation.y += 0.2;
+                    rat.rotation.x += 0.15;
+
+                    // Shrink rat as it gets caught
+                    const currentScale = rat.scale.x * 0.95;
+                    rat.scale.set(currentScale, currentScale, currentScale);
+
+                    // Remove when very close to bird or very small
+                    const distToBird = rat.position.distanceTo(bird.position);
+                    if (distToBird < 1 || currentScale < 0.1) {
+                        scene.remove(rat);
+                        rats.splice(i, 1);
+                    }
+                    continue;
+                }
 
                 // Calculate distance to bird (3D)
                 const dx = bird.position.x - rat.position.x;
@@ -902,10 +986,8 @@
                 }
 
                 // Check if caught (only when bird is close to ground)
-                if (horizontalDistance < CATCH_DISTANCE && bird.position.y < 5) {
+                if (horizontalDistance < CATCH_DISTANCE && bird.position.y < 5 && !rat.userData.isCaught) {
                     rat.userData.isCaught = true;
-                    scene.remove(rat);
-                    rats.splice(i, 1);
                     caughtRatsCount++;
                 }
             }
