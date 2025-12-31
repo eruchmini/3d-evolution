@@ -109,6 +109,27 @@
             opacity: 0;
             transition: opacity 0.5s ease;
         }
+
+        #hungerBar {
+            position: absolute;
+            bottom: 70px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 300px;
+            height: 30px;
+            background: rgba(0, 0, 0, 0.7);
+            border: 2px solid #ff9900;
+            border-radius: 15px;
+            padding: 3px;
+        }
+
+        #hungerFill {
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(90deg, #ff3300, #ff9900);
+            border-radius: 12px;
+            transition: width 0.3s ease;
+        }
     </style>
 </head>
 <body>
@@ -133,10 +154,15 @@
         <div>Pitch: <span id="pitch">0</span>°</div>
         <div>Position: <span id="position">0, 0</span></div>
         <div>Fish Caught: <span id="caughtFish">0</span></div>
+        <div>Hunger: <span id="hunger">100</span>%</div>
     </div>
 
     <div id="oxygenBar">
         <div id="oxygenFill"></div>
+    </div>
+
+    <div id="hungerBar">
+        <div id="hungerFill"></div>
     </div>
 
     <div id="underwaterOverlay"></div>
@@ -332,7 +358,7 @@
         });
         const oceanFloor = new THREE.Mesh(oceanFloorGeometry, oceanFloorMaterial);
         oceanFloor.rotation.x = -Math.PI / 2;
-        oceanFloor.position.y = -15; // Ocean floor at -15m (shallow ocean)
+        oceanFloor.position.y = -80; // Ocean floor at -80m (DEEP ocean)
         oceanFloor.receiveShadow = true;
 
         // Add variation to ocean floor for terrain effect
@@ -474,8 +500,8 @@
             tail.rotation.x = -Math.PI / 2;
             fish.add(tail);
 
-            // Start fish at various depths in shallower ocean
-            const depth = -2 - Math.random() * 10; // Between -2 and -12 meters
+            // Start fish at various depths in deep ocean
+            const depth = -2 - Math.random() * 60; // Between -2 and -62 meters
             fish.position.set(x, depth, z);
 
             // Add custom properties for behavior (boid/flocking)
@@ -588,7 +614,7 @@
             tail.rotation.x = -Math.PI / 2;
             shark.add(tail);
 
-            shark.position.set(x, -8, z); // Patrol at mid-depth
+            shark.position.set(x, -20, z); // Patrol at mid-depth in deep ocean
 
             // Add custom properties for behavior
             shark.userData.velocity = new THREE.Vector3(0, 0, 0);
@@ -611,8 +637,8 @@
                 Math.cos(angle) * distance,
                 Math.sin(angle) * distance
             );
-            // Vary shark starting depths to make them more visible
-            newShark.position.y = -3 - Math.random() * 8; // Between -3 and -11
+            // Vary shark starting depths in deep ocean
+            newShark.position.y = -10 - Math.random() * 50; // Between -10 and -60
             sharks.push(newShark);
             scene.add(newShark);
         }
@@ -647,6 +673,17 @@
         let waveTime = 0; // For wave animation
         let timeAboveWater = 0; // Track how long we've been above water
         const GRAVITY_GRACE_PERIOD = 1.5; // Seconds before gravity kicks in
+
+        // Hunger system
+        let hunger = 100; // Hunger level (0-100)
+        const maxHunger = 100;
+        const hungerDepletionRate = 0.05; // Passive hunger loss per frame
+        const boostHungerCost = 0.8; // Hunger cost per frame when boosting
+        const fishHungerGain = 15; // Hunger gained from eating a fish
+
+        // Shark respawning
+        let sharkSpawnTimer = 0;
+        const sharkSpawnInterval = 600; // Spawn a new shark every ~10 seconds (at 60fps)
 
         // Keyboard controls
         window.addEventListener('keydown', (e) => {
@@ -731,6 +768,29 @@
 
             // Update air time bar
             document.getElementById('oxygenFill').style.width = airTime + '%';
+
+            // Hunger system - passive depletion
+            hunger = Math.max(0, hunger - hungerDepletionRate);
+
+            // Hunger cost from boosting
+            if (keys[' '] || keys['Space']) {
+                hunger = Math.max(0, hunger - boostHungerCost);
+            }
+
+            // Update hunger bar
+            document.getElementById('hungerFill').style.width = hunger + '%';
+
+            // Death from starvation
+            if (hunger <= 0) {
+                bird.position.set(0, -5, 0);
+                birdPitch = 0;
+                birdYaw = 0;
+                hunger = maxHunger;
+                airTime = maxAirTime;
+                const fishLost = Math.floor(caughtFishCount / 2);
+                caughtFishCount -= fishLost;
+                console.log("Starved! Lost " + fishLost + " fish!");
+            }
 
             // Update underwater overlay and fog
             const overlay = document.getElementById('underwaterOverlay');
@@ -833,9 +893,9 @@
                 birdPitch = Math.min(birdPitch, 0);
             }
 
-            // Ocean floor limit when diving (shallow ocean)
-            if (bird.position.y < -14) {
-                bird.position.y = -14;
+            // Ocean floor limit when diving (deep ocean)
+            if (bird.position.y < -78) {
+                bird.position.y = -78;
                 birdPitch = Math.max(birdPitch, 0);
             }
 
@@ -1017,13 +1077,13 @@
                 // Apply velocity to position
                 fishObj.position.add(fishObj.userData.velocity);
 
-                // Keep fish underwater in shallow ocean (between -13 and -2 meters)
+                // Keep fish underwater in deep ocean (between -75 and -2 meters)
                 if (fishObj.position.y > -2) {
                     fishObj.position.y = -2;
                     fishObj.userData.verticalAngle = -Math.abs(fishObj.userData.verticalAngle);
                 }
-                if (fishObj.position.y < -13) {
-                    fishObj.position.y = -13;
+                if (fishObj.position.y < -75) {
+                    fishObj.position.y = -75;
                     fishObj.userData.verticalAngle = Math.abs(fishObj.userData.verticalAngle);
                 }
 
@@ -1059,6 +1119,19 @@
                     scene.remove(fishObj);
                     fish.splice(i, 1);
                     caughtFishCount++;
+
+                    // Increase hunger when eating fish
+                    hunger = Math.min(maxHunger, hunger + fishHungerGain);
+
+                    // Respawn a new fish in a random location
+                    const angle = Math.random() * Math.PI * 2;
+                    const distance = Math.random() * 450;
+                    const newFish = createFish(
+                        Math.cos(angle) * distance,
+                        Math.sin(angle) * distance
+                    );
+                    fish.push(newFish);
+                    scene.add(newFish);
                 }
             }
 
@@ -1078,8 +1151,8 @@
                 const dy = bird.position.y - shark.position.y;
                 const distanceToBird = Math.sqrt(dx * dx + dz * dz + dy * dy);
 
-                // Shark AI: patrol or chase
-                if (isUnderwater && distanceToBird < SHARK_CHASE_DISTANCE) {
+                // Shark AI: patrol or chase (ONLY chase when player is underwater - sharks can't see above water!)
+                if (isUnderwater && bird.position.y < 0 && distanceToBird < SHARK_CHASE_DISTANCE) {
                     // Chase the bird!
                     const chaseAngle = Math.atan2(dx, dz);
                     const verticalChase = Math.atan2(dy, Math.sqrt(dx * dx + dz * dz));
@@ -1103,13 +1176,13 @@
                     shark.position.y += Math.sin(shark.userData.verticalAngle) * shark.userData.swimSpeed * 0.3;
                 }
 
-                // Keep sharks underwater (between -13 and -3 meters)
+                // Keep sharks underwater in deep ocean (between -75 and -3 meters)
                 if (shark.position.y > -3) {
                     shark.position.y = -3;
                     shark.userData.verticalAngle = -Math.abs(shark.userData.verticalAngle);
                 }
-                if (shark.position.y < -13) {
-                    shark.position.y = -13;
+                if (shark.position.y < -75) {
+                    shark.position.y = -75;
                     shark.userData.verticalAngle = Math.abs(shark.userData.verticalAngle);
                 }
 
@@ -1134,6 +1207,31 @@
                     shark.children[7].rotation.y = tailWag;
                 }
 
+                // Sharks eat fish
+                const SHARK_EAT_DISTANCE = 2.5;
+                for (let j = fish.length - 1; j >= 0; j--) {
+                    const fishObj = fish[j];
+                    if (fishObj.userData.isCaught) continue;
+
+                    const fishDist = shark.position.distanceTo(fishObj.position);
+                    if (fishDist < SHARK_EAT_DISTANCE) {
+                        // Shark eats the fish
+                        scene.remove(fishObj);
+                        fish.splice(j, 1);
+
+                        // Respawn a new fish in a random location
+                        const angle = Math.random() * Math.PI * 2;
+                        const distance = Math.random() * 450;
+                        const newFish = createFish(
+                            Math.cos(angle) * distance,
+                            Math.sin(angle) * distance
+                        );
+                        fish.push(newFish);
+                        scene.add(newFish);
+                        break; // Shark only eats one fish per frame
+                    }
+                }
+
                 // Check if shark caught the swordfish (game over)
                 if (distanceToBird < SHARK_ATTACK_DISTANCE && isUnderwater) {
                     // Shark attack! Reset position and lose some fish
@@ -1149,6 +1247,21 @@
                     // Visual feedback
                     console.log("Shark attack! Lost " + fishLost + " fish!");
                 }
+            }
+
+            // Shark respawning - add new sharks periodically to maintain population
+            sharkSpawnTimer++;
+            if (sharkSpawnTimer >= sharkSpawnInterval && sharks.length < 20) {
+                sharkSpawnTimer = 0;
+                const angle = Math.random() * Math.PI * 2;
+                const distance = Math.random() * 350 + 50;
+                const newShark = createShark(
+                    Math.cos(angle) * distance,
+                    Math.sin(angle) * distance
+                );
+                newShark.position.y = -10 - Math.random() * 50;
+                sharks.push(newShark);
+                scene.add(newShark);
             }
 
             // Update stats with color coding
@@ -1170,6 +1283,7 @@
             document.getElementById('position').textContent =
                 `${Math.round(bird.position.x)}, ${Math.round(bird.position.z)}`;
             document.getElementById('caughtFish').textContent = caughtFishCount;
+            document.getElementById('hunger').textContent = Math.round(hunger);
 
             renderer.render(scene, camera);
         }
