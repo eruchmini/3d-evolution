@@ -130,6 +130,98 @@
             border-radius: 12px;
             transition: width 0.3s ease;
         }
+
+        #upgradeMenu {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: rgba(0, 0, 0, 0.95);
+            color: white;
+            padding: 30px;
+            border-radius: 15px;
+            border: 3px solid #00ffff;
+            display: none;
+            z-index: 1000;
+            min-width: 500px;
+            max-width: 600px;
+        }
+
+        #upgradeMenu h2 {
+            text-align: center;
+            margin-bottom: 20px;
+            color: #00ffff;
+            font-size: 28px;
+        }
+
+        #upgradeMenu .points-display {
+            text-align: center;
+            margin-bottom: 20px;
+            font-size: 18px;
+            color: #ffff00;
+        }
+
+        #upgradeMenu .upgrade-option {
+            background: rgba(0, 100, 150, 0.3);
+            border: 2px solid #0099ff;
+            border-radius: 10px;
+            padding: 15px;
+            margin: 15px 0;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        #upgradeMenu .upgrade-option:hover {
+            background: rgba(0, 150, 200, 0.5);
+            border-color: #00ffff;
+            transform: scale(1.02);
+        }
+
+        #upgradeMenu .upgrade-option.disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        #upgradeMenu .upgrade-option.disabled:hover {
+            transform: none;
+            background: rgba(0, 100, 150, 0.3);
+            border-color: #0099ff;
+        }
+
+        #upgradeMenu .upgrade-name {
+            font-size: 20px;
+            font-weight: bold;
+            margin-bottom: 5px;
+            color: #00ffff;
+        }
+
+        #upgradeMenu .upgrade-cost {
+            font-size: 14px;
+            color: #ffff00;
+            margin-bottom: 8px;
+        }
+
+        #upgradeMenu .upgrade-description {
+            font-size: 14px;
+            color: #ffffff;
+            line-height: 1.4;
+        }
+
+        #upgradeMenu .save-button {
+            background: rgba(100, 100, 100, 0.5);
+            border: 2px solid #888888;
+            border-radius: 10px;
+            padding: 15px;
+            margin: 15px 0;
+            cursor: pointer;
+            text-align: center;
+            transition: all 0.3s ease;
+        }
+
+        #upgradeMenu .save-button:hover {
+            background: rgba(150, 150, 150, 0.5);
+            border-color: #aaaaaa;
+        }
     </style>
 </head>
 <body>
@@ -166,6 +258,12 @@
     </div>
 
     <div id="underwaterOverlay"></div>
+
+    <div id="upgradeMenu">
+        <h2>⚡ UPGRADE AVAILABLE! ⚡</h2>
+        <div class="points-display">Upgrade Points: <span id="upgradePoints">0</span></div>
+        <div id="upgradeOptions"></div>
+    </div>
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <script>
@@ -697,6 +795,55 @@
         const hungerDepletionRate = 0.05; // Passive hunger loss per frame
         const boostHungerCost = 0.8; // Hunger cost per frame when boosting
         const fishHungerGain = 15; // Hunger gained from eating a fish
+        let hasReachedMaxHunger = false; // Track if we've reached max hunger for upgrade point
+
+        // Upgrade system
+        let upgradePoints = 0;
+        let isPaused = false;
+        const activeUpgrades = {}; // Track which upgrades are active
+
+        // All available upgrades
+        const allUpgrades = [
+            // FREE UPGRADES
+            { id: 'vision', name: '👁️ Enhanced Vision', cost: 0, description: 'See sharks and fish from further away with glowing outlines' },
+            { id: 'compass', name: '🧭 Compass Sense', cost: 0, description: 'Always know which direction is north' },
+            { id: 'depth_gauge', name: '📊 Depth Gauge', cost: 0, description: 'See exact depth with visual indicators' },
+
+            // 1 POINT UPGRADES - BASIC
+            { id: 'speed', name: '⚡ Speed Boost', cost: 1, description: 'Permanently increase your swimming speed by 20%' },
+            { id: 'hunger_slow', name: '🍽️ Efficient Metabolism', cost: 1, description: 'Hunger depletes 30% slower' },
+            { id: 'fish_value', name: '🐟 Nutritious Fish', cost: 1, description: 'Each fish restores 25% more hunger' },
+            { id: 'boost_efficient', name: '💨 Efficient Boost', cost: 1, description: 'Speed boost costs 50% less hunger' },
+            { id: 'air_time', name: '🌊 Improved Lungs', cost: 1, description: 'Jump out of water for 50% longer' },
+            { id: 'turning', name: '🔄 Agile Turns', cost: 1, description: 'Turn 30% faster for better maneuverability' },
+            { id: 'acceleration', name: '🚀 Quick Acceleration', cost: 1, description: 'Reach top speed 40% faster' },
+            { id: 'fish_magnet', name: '🧲 Fish Attraction', cost: 1, description: 'Fish spawn closer to you' },
+            { id: 'stealth', name: '👻 Stealth Mode', cost: 1, description: 'Sharks take 30% longer to notice you' },
+            { id: 'lucky', name: '🍀 Lucky Catch', cost: 1, description: '10% chance to catch 2 fish at once' },
+
+            // 1 POINT UPGRADES - ADVANCED
+            { id: 'radar', name: '📡 Fish Radar', cost: 1, description: 'See nearby fish through walls with sonar pulses' },
+            { id: 'regeneration', name: '💚 Slow Regeneration', cost: 1, description: 'Slowly regenerate hunger over time when above 50%' },
+            { id: 'grace_period', name: '🕊️ Extended Grace', cost: 1, description: 'Jump grace period lasts 2x longer before gravity kicks in' },
+            { id: 'deep_diver', name: '🏊 Deep Diver', cost: 1, description: 'Swim 20% faster below -40m depth' },
+            { id: 'surface_swimmer', name: '🏄 Surface Swimmer', cost: 1, description: 'Swim 20% faster near the surface (above -10m)' },
+
+            // 2 POINT UPGRADES - POWERFUL
+            { id: 'mega_speed', name: '⚡⚡ Mega Speed', cost: 2, description: 'Permanently increase speed by 50% (very fast!)' },
+            { id: 'shark_repel', name: '🦈 Shark Repellent', cost: 2, description: 'Sharks are afraid of you and keep their distance' },
+            { id: 'infinite_air', name: '🫁 Enhanced Gills', cost: 2, description: 'Never run out of air when jumping' },
+            { id: 'double_catch', name: '🐟🐟 Double Catch', cost: 2, description: 'Always catch 2 fish at once' },
+            { id: 'no_hunger', name: '♾️ Endless Energy', cost: 2, description: 'Hunger depletes 80% slower' },
+            { id: 'mega_boost', name: '💨💨 Mega Boost', cost: 2, description: 'Speed boost is 2x more powerful' },
+            { id: 'time_slow', name: '⏰ Bullet Time', cost: 2, description: 'Hold SHIFT to slow down time for precise maneuvers' },
+            { id: 'invincible_jump', name: '🛡️ Invincible Jump', cost: 2, description: 'Sharks cannot attack you while above water' },
+            { id: 'fish_swarm', name: '🐠 Fish Swarm Master', cost: 2, description: 'Fish schools are 50% larger and denser' },
+            { id: 'predator_sense', name: '⚠️ Predator Sense', cost: 2, description: 'Screen flashes red when a shark is chasing you' },
+            { id: 'ultra_agility', name: '🌀 Ultra Agility', cost: 2, description: 'Turn and pitch 50% faster with tighter controls' },
+            { id: 'hunting_frenzy', name: '😈 Hunting Frenzy', cost: 2, description: 'Each fish caught increases speed for 10 seconds (stacks)' },
+            { id: 'depth_master', name: '🌊 Depth Master', cost: 2, description: 'Swim 40% faster at extreme depths (below -60m)' },
+            { id: 'ghost_mode', name: '👻 Ghost Mode', cost: 2, description: 'Become nearly invisible to sharks (80% detection reduction)' },
+        ];
 
         // Shark respawning
         let sharkSpawnTimer = 0;
@@ -761,6 +908,95 @@
             e.preventDefault();
         });
 
+        // Upgrade system functions
+        function showUpgradeMenu() {
+            isPaused = true;
+
+            // Filter out already owned upgrades
+            const availableUpgrades = allUpgrades.filter(u => !activeUpgrades[u.id]);
+
+            // Randomly select 2 upgrades
+            const shuffled = availableUpgrades.sort(() => Math.random() - 0.5);
+            const selectedUpgrades = shuffled.slice(0, 2);
+
+            // Display upgrade menu
+            const menu = document.getElementById('upgradeMenu');
+            const optionsDiv = document.getElementById('upgradeOptions');
+            const pointsSpan = document.getElementById('upgradePoints');
+
+            pointsSpan.textContent = upgradePoints;
+            optionsDiv.innerHTML = '';
+
+            // Add upgrade options
+            selectedUpgrades.forEach(upgrade => {
+                const canAfford = upgradePoints >= upgrade.cost;
+                const optionDiv = document.createElement('div');
+                optionDiv.className = 'upgrade-option' + (canAfford ? '' : ' disabled');
+                optionDiv.innerHTML = `
+                    <div class="upgrade-name">${upgrade.name}</div>
+                    <div class="upgrade-cost">${upgrade.cost === 0 ? 'FREE' : `Cost: ${upgrade.cost} point${upgrade.cost > 1 ? 's' : ''}`}</div>
+                    <div class="upgrade-description">${upgrade.description}</div>
+                `;
+
+                if (canAfford) {
+                    optionDiv.onclick = () => selectUpgrade(upgrade);
+                }
+
+                optionsDiv.appendChild(optionDiv);
+            });
+
+            // Add "Save for Later" button
+            const saveButton = document.createElement('div');
+            saveButton.className = 'save-button';
+            saveButton.innerHTML = '<strong>💾 Save for Later</strong><br>Keep your upgrade point for future use';
+            saveButton.onclick = () => {
+                menu.style.display = 'none';
+                isPaused = false;
+            };
+            optionsDiv.appendChild(saveButton);
+
+            menu.style.display = 'block';
+        }
+
+        function selectUpgrade(upgrade) {
+            if (upgradePoints >= upgrade.cost) {
+                upgradePoints -= upgrade.cost;
+                activeUpgrades[upgrade.id] = true;
+                console.log('Upgrade acquired:', upgrade.name);
+
+                // Apply upgrade effects
+                applyUpgrade(upgrade.id);
+
+                // Close menu
+                document.getElementById('upgradeMenu').style.display = 'none';
+                isPaused = false;
+            }
+        }
+
+        function applyUpgrade(upgradeId) {
+            // Most upgrades are passive and checked during gameplay
+            // Some upgrades need immediate application
+            switch(upgradeId) {
+                case 'mega_speed':
+                case 'speed':
+                    // Speed increases are applied in real-time during movement
+                    break;
+                case 'fish_swarm':
+                    // Spawn more fish
+                    for (let i = 0; i < 300; i++) {
+                        const angle = Math.random() * Math.PI * 2;
+                        const distance = Math.random() * 200 + 50;
+                        const newFish = createFish(
+                            Math.cos(angle) * distance,
+                            Math.sin(angle) * distance
+                        );
+                        fish.push(newFish);
+                        scene.add(newFish);
+                    }
+                    break;
+            }
+        }
+
         // Handle window resize
         window.addEventListener('resize', () => {
             camera.aspect = window.innerWidth / window.innerHeight;
@@ -771,6 +1007,25 @@
         // Animation loop with momentum-based physics
         function animate() {
             requestAnimationFrame(animate);
+
+            // Skip game logic if paused (upgrade menu)
+            if (isPaused) {
+                renderer.render(scene, camera);
+                return;
+            }
+
+            // Check if hunger reached max for upgrade point
+            if (hunger >= maxHunger && !hasReachedMaxHunger) {
+                hasReachedMaxHunger = true;
+                upgradePoints++;
+                console.log('Max hunger reached! Earned 1 upgrade point. Total:', upgradePoints);
+                showUpgradeMenu();
+            }
+
+            // Reset flag when hunger drops below max
+            if (hunger < maxHunger) {
+                hasReachedMaxHunger = false;
+            }
 
             // Animate ocean waves - RANDOM SIZE WAVES!
             waveTime += 0.02;
@@ -807,16 +1062,24 @@
                 timeAboveWater = 0; // Reset when underwater
             }
 
-            // Air time system (for jumping out of water)
+            // Air time system (for jumping out of water) with upgrades
             if (!isUnderwater) {
-                // Above water - deplete air time
-                airTime = Math.max(0, airTime - airTimeDepletionRate);
-                document.getElementById('oxygenBar').style.display = 'block';
+                // Above water - deplete air time (unless infinite air upgrade)
+                if (!activeUpgrades['infinite_air']) {
+                    let effectiveAirDepletion = airTimeDepletionRate;
+                    if (activeUpgrades['air_time']) effectiveAirDepletion *= 0.5; // 50% slower depletion
+                    airTime = Math.max(0, airTime - effectiveAirDepletion);
+                    document.getElementById('oxygenBar').style.display = 'block';
 
-                // Force back underwater if air time runs out
-                if (airTime <= 0) {
-                    bird.position.y = -0.5; // Force underwater
-                    airTime = 0;
+                    // Force back underwater if air time runs out
+                    if (airTime <= 0) {
+                        bird.position.y = -0.5; // Force underwater
+                        airTime = 0;
+                    }
+                } else {
+                    // Infinite air - keep it full
+                    airTime = maxAirTime;
+                    document.getElementById('oxygenBar').style.display = 'none';
                 }
             } else {
                 // Underwater - recover air time
@@ -829,12 +1092,22 @@
             // Update air time bar
             document.getElementById('oxygenFill').style.width = airTime + '%';
 
-            // Hunger system - passive depletion
-            hunger = Math.max(0, hunger - hungerDepletionRate);
+            // Hunger system - passive depletion with upgrades
+            let effectiveHungerDepletion = hungerDepletionRate;
+            if (activeUpgrades['hunger_slow']) effectiveHungerDepletion *= 0.7; // 30% slower
+            if (activeUpgrades['no_hunger']) effectiveHungerDepletion *= 0.2; // 80% slower
+            hunger = Math.max(0, hunger - effectiveHungerDepletion);
 
-            // Hunger cost from boosting
+            // Regeneration upgrade
+            if (activeUpgrades['regeneration'] && hunger > 50 && hunger < maxHunger) {
+                hunger = Math.min(maxHunger, hunger + 0.02); // Slow regen
+            }
+
+            // Hunger cost from boosting with upgrades
             if (keys[' '] || keys['Space']) {
-                hunger = Math.max(0, hunger - boostHungerCost);
+                let effectiveBoostCost = boostHungerCost;
+                if (activeUpgrades['boost_efficient']) effectiveBoostCost *= 0.5; // 50% cheaper
+                hunger = Math.max(0, hunger - effectiveBoostCost);
             }
 
             // Update hunger bar
@@ -868,12 +1141,15 @@
                 scene.background.setHex(0x5BA3D0);
             }
 
-            // Pitch controls (W = up, S = down)
+            // Pitch controls (W = up, S = down) with upgrades
+            let effectivePitchSpeed = pitchSpeed;
+            if (activeUpgrades['ultra_agility']) effectivePitchSpeed *= 1.5; // 50% faster
+
             if (keys['w'] || keys['ArrowUp']) {
-                birdPitch += pitchSpeed;
+                birdPitch += effectivePitchSpeed;
             }
             if (keys['s'] || keys['ArrowDown']) {
-                birdPitch -= pitchSpeed;
+                birdPitch -= effectivePitchSpeed;
             }
 
             // Apply pitch decay when no input (returns to level flight)
@@ -884,12 +1160,16 @@
             // Limit pitch angle
             birdPitch = Math.max(-0.8, Math.min(0.8, birdPitch));
 
-            // Yaw controls (A = left, D = right) with banking
+            // Yaw controls (A = left, D = right) with banking and upgrades
+            let effectiveYawSpeed = yawSpeed;
+            if (activeUpgrades['turning']) effectiveYawSpeed *= 1.3; // 30% faster
+            if (activeUpgrades['ultra_agility']) effectiveYawSpeed *= 1.5; // 50% faster
+
             if (keys['a'] || keys['ArrowLeft']) {
-                birdYaw += yawSpeed;
+                birdYaw += effectiveYawSpeed;
                 bankingAngle = Math.min(bankingAngle + 0.05, 0.6); // Tilt left (positive)
             } else if (keys['d'] || keys['ArrowRight']) {
-                birdYaw -= yawSpeed;
+                birdYaw -= effectiveYawSpeed;
                 bankingAngle = Math.max(bankingAngle - 0.05, -0.6); // Tilt right (negative)
             } else {
                 // Return to level when not turning
@@ -908,10 +1188,27 @@
             const airResistance = speedDifference * 0.02; // 2% drag toward cruising speed
             forwardSpeed -= airResistance;
 
-            // Speed boost with space
+            // Speed boost with space and upgrades
             let currentSpeed = forwardSpeed;
             if (keys[' '] || keys['Space']) {
-                currentSpeed *= 1.8;
+                let boostMultiplier = 1.8;
+                if (activeUpgrades['mega_boost']) boostMultiplier = 3.6; // 2x more powerful
+                currentSpeed *= boostMultiplier;
+            }
+
+            // Apply speed upgrades
+            if (activeUpgrades['speed']) currentSpeed *= 1.2; // 20% faster
+            if (activeUpgrades['mega_speed']) currentSpeed *= 1.5; // 50% faster
+
+            // Depth-based speed bonuses
+            if (activeUpgrades['deep_diver'] && bird.position.y < -40) {
+                currentSpeed *= 1.2; // 20% faster below -40m
+            }
+            if (activeUpgrades['depth_master'] && bird.position.y < -60) {
+                currentSpeed *= 1.4; // 40% faster below -60m
+            }
+            if (activeUpgrades['surface_swimmer'] && bird.position.y > -10) {
+                currentSpeed *= 1.2; // 20% faster near surface
             }
 
             // Much faster underwater!
@@ -933,7 +1230,9 @@
             bird.position.y += pitchSin * currentSpeed;
 
             // Add gravity when above water (but only after grace period)!
-            if (!isUnderwater && timeAboveWater > GRAVITY_GRACE_PERIOD) {
+            let effectiveGracePeriod = GRAVITY_GRACE_PERIOD;
+            if (activeUpgrades['grace_period']) effectiveGracePeriod *= 2; // 2x longer
+            if (!isUnderwater && timeAboveWater > effectiveGracePeriod) {
                 bird.position.y -= 0.15; // Gravity pulls swordfish down
             }
 
@@ -1200,20 +1499,32 @@
                     fishObj.userData.isCaught = true;
                     scene.remove(fishObj);
                     fish.splice(i, 1);
-                    caughtFishCount++;
 
-                    // Increase hunger when eating fish
-                    hunger = Math.min(maxHunger, hunger + fishHungerGain);
+                    // Calculate fish catch count with upgrades
+                    let fishCaught = 1;
+                    if (activeUpgrades['double_catch']) {
+                        fishCaught = 2; // Always catch 2
+                    } else if (activeUpgrades['lucky'] && Math.random() < 0.1) {
+                        fishCaught = 2; // 10% chance for 2
+                    }
+                    caughtFishCount += fishCaught;
 
-                    // Respawn a new fish in a random location
-                    const angle = Math.random() * Math.PI * 2;
-                    const distance = Math.random() * 450;
-                    const newFish = createFish(
-                        Math.cos(angle) * distance,
-                        Math.sin(angle) * distance
-                    );
-                    fish.push(newFish);
-                    scene.add(newFish);
+                    // Increase hunger when eating fish with upgrades
+                    let effectiveFishHunger = fishHungerGain;
+                    if (activeUpgrades['fish_value']) effectiveFishHunger *= 1.25; // 25% more
+                    hunger = Math.min(maxHunger, hunger + (effectiveFishHunger * fishCaught));
+
+                    // Respawn fish
+                    for (let f = 0; f < fishCaught; f++) {
+                        const angle = Math.random() * Math.PI * 2;
+                        const distance = Math.random() * 450;
+                        const newFish = createFish(
+                            Math.cos(angle) * distance,
+                            Math.sin(angle) * distance
+                        );
+                        fish.push(newFish);
+                        scene.add(newFish);
+                    }
                 }
             }
 
@@ -1225,7 +1536,12 @@
 
             // Update shark behavior
             const SHARK_ATTACK_DISTANCE = 3.5; // Distance at which shark attacks
-            const SHARK_CHASE_DISTANCE = 60; // Sharks can see you from VERY far away!
+            let SHARK_CHASE_DISTANCE = 30; // Sharks can see you from a moderate distance
+
+            // Apply shark vision upgrades
+            if (activeUpgrades['stealth']) SHARK_CHASE_DISTANCE *= 0.7; // 30% reduction
+            if (activeUpgrades['ghost_mode']) SHARK_CHASE_DISTANCE *= 0.2; // 80% reduction
+            if (activeUpgrades['shark_repel']) SHARK_CHASE_DISTANCE = 10; // Sharks keep distance
 
             for (let i = 0; i < sharks.length; i++) {
                 const shark = sharks[i];
@@ -1321,7 +1637,8 @@
                 }
 
                 // Check if shark caught the swordfish (game over)
-                if (distanceToBird < SHARK_ATTACK_DISTANCE && isUnderwater) {
+                const isVulnerable = isUnderwater || !activeUpgrades['invincible_jump'];
+                if (distanceToBird < SHARK_ATTACK_DISTANCE && isVulnerable) {
                     // Shark attack! Reset position and lose some fish
                     bird.position.set(0, -5, 0);
                     birdPitch = 0;
