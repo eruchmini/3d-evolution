@@ -492,12 +492,12 @@
             return fish;
         }
 
-        // Spawn fish across the ocean
+        // Spawn fish across the ocean - MASSIVE SCHOOLS!
         const fish = [];
-        const NUM_FISH = 120; // Increased from 40 for more underwater life
+        const NUM_FISH = 800; // TONS of fish everywhere!
         for (let i = 0; i < NUM_FISH; i++) {
             const angle = Math.random() * Math.PI * 2;
-            const distance = Math.random() * 400;
+            const distance = Math.random() * 450;
             const newFish = createFish(
                 Math.cos(angle) * distance,
                 Math.sin(angle) * distance
@@ -719,11 +719,11 @@
             // Update underwater overlay and fog
             const overlay = document.getElementById('underwaterOverlay');
             if (isUnderwater) {
-                overlay.style.opacity = '0.5';
-                // Underwater fog for limited visibility
-                scene.fog.density = 0.08; // Much denser fog underwater
+                overlay.style.opacity = '0.3'; // Less dark overlay
+                // Better underwater visibility!
+                scene.fog.density = 0.015; // Much less fog - can see further
                 scene.fog.color.setHex(0x004466); // Dark blue underwater fog
-                scene.background.setHex(0x003355); // Dark blue underwater background
+                scene.background.setHex(0x005577); // Lighter underwater background
             } else {
                 overlay.style.opacity = '0';
                 // Clear fog above water
@@ -795,6 +795,11 @@
             bird.position.x += Math.sin(birdYaw) * pitchCos * currentSpeed;
             bird.position.z += Math.cos(birdYaw) * pitchCos * currentSpeed;
             bird.position.y += pitchSin * currentSpeed;
+
+            // Add gravity when above water!
+            if (!isUnderwater) {
+                bird.position.y -= 0.15; // Gravity pulls swordfish down
+            }
 
             // Map boundary - keep bird within ocean area
             if (Math.abs(bird.position.x) > MAP_SIZE) {
@@ -894,10 +899,10 @@
 
             // Update fish behavior - BOID/FLOCKING ALGORITHM
             const CATCH_DISTANCE = 2.0;
-            const PERCEPTION_RADIUS = 8.0; // How far fish can see other fish
-            const FLEE_RADIUS = 12.0; // Distance to flee from player
-            const SHARK_ATTRACTION_RADIUS = 15.0; // Distance to be attracted to sharks
-            const SEPARATION_DISTANCE = 2.0; // Minimum distance between fish
+            const PERCEPTION_RADIUS = 15.0; // LARGER perception for bigger schools
+            const FLEE_RADIUS = 18.0; // Larger flee radius
+            const SHARK_ATTRACTION_RADIUS = 20.0; // Stronger shark attraction
+            const SEPARATION_DISTANCE = 1.5; // Closer together for dense schools
 
             for (let i = fish.length - 1; i >= 0; i--) {
                 const fishObj = fish[i];
@@ -948,18 +953,18 @@
                 if (nearbyCount > 0) {
                     cohesion.divideScalar(nearbyCount);
                     cohesion.sub(fishObj.position);
-                    cohesion.normalize().multiplyScalar(0.02);
+                    cohesion.normalize().multiplyScalar(0.04); // Stronger cohesion for tighter schools
 
                     alignment.divideScalar(nearbyCount);
-                    alignment.normalize().multiplyScalar(0.01);
+                    alignment.normalize().multiplyScalar(0.025); // Stronger alignment
 
-                    separation.normalize().multiplyScalar(0.03);
+                    separation.normalize().multiplyScalar(0.04); // Keep some personal space
                 }
 
                 // Flee from player when close
                 if (distanceToBird < FLEE_RADIUS) {
                     fleeForce.set(-dx, -dy, -dz);
-                    fleeForce.normalize().multiplyScalar(0.15); // Strong flee force
+                    fleeForce.normalize().multiplyScalar(0.2); // Very strong flee force
                 }
 
                 // Attraction to nearest shark
@@ -975,7 +980,7 @@
 
                 if (nearestShark) {
                     sharkAttraction.subVectors(nearestShark.position, fishObj.position);
-                    sharkAttraction.normalize().multiplyScalar(0.025);
+                    sharkAttraction.normalize().multiplyScalar(0.04); // Stronger shark attraction
                 }
 
                 // Apply all forces to velocity
