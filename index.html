@@ -256,15 +256,6 @@
         ground.position.y = 0;
         ground.receiveShadow = true;
 
-        // Add some variation to the ground for terrain effect
-        const positions = ground.geometry.attributes.position;
-        for (let i = 0; i < positions.count; i++) {
-            const y = Math.random() * 1.5 + Math.sin(i * 0.1) * 0.5;
-            positions.setZ(i, y);
-        }
-        positions.needsUpdate = true;
-        ground.geometry.computeVertexNormals();
-
         scene.add(ground);
 
         // Create enhanced clouds
