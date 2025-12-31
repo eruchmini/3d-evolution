@@ -341,10 +341,12 @@
         // Store original positions for wave animation
         const oceanPositions = ocean.geometry.attributes.position;
         const originalPositions = new Float32Array(oceanPositions.count * 3);
+        const waveRandomness = new Float32Array(oceanPositions.count); // Random amplitude for each vertex
         for (let i = 0; i < oceanPositions.count; i++) {
             originalPositions[i * 3] = oceanPositions.getX(i);
             originalPositions[i * 3 + 1] = oceanPositions.getY(i);
             originalPositions[i * 3 + 2] = oceanPositions.getZ(i);
+            waveRandomness[i] = 0.5 + Math.random() * 1.5; // Random multiplier between 0.5 and 2.0
         }
 
         scene.add(ocean);
@@ -506,30 +508,45 @@
 
             // Add custom properties for behavior (boid/flocking)
             fish.userData.velocity = new THREE.Vector3(
-                (Math.random() - 0.5) * 0.3,
-                (Math.random() - 0.5) * 0.15,
-                (Math.random() - 0.5) * 0.3
+                (Math.random() - 0.5) * 0.2,
+                (Math.random() - 0.5) * 0.1,
+                (Math.random() - 0.5) * 0.2
             );
-            fish.userData.swimSpeed = 0.35; // FASTER swimming fish
-            fish.userData.maxSpeed = 0.45; // Much faster fish
+            fish.userData.swimSpeed = 0.25; // Slower swimming fish
+            fish.userData.maxSpeed = 0.32; // Reduced max speed
             fish.userData.isCaught = false;
             fish.userData.swimTime = Math.random() * 100;
+            fish.userData.radius = 0.5; // Collision radius for hitbox
 
             return fish;
         }
 
-        // Spawn fish across the ocean - MASSIVE SCHOOLS!
+        // Spawn fish across the ocean - HUGE MASSIVE PACKS!
         const fish = [];
-        const NUM_FISH = 800; // TONS of fish everywhere!
-        for (let i = 0; i < NUM_FISH; i++) {
-            const angle = Math.random() * Math.PI * 2;
-            const distance = Math.random() * 450;
-            const newFish = createFish(
-                Math.cos(angle) * distance,
-                Math.sin(angle) * distance
-            );
-            fish.push(newFish);
-            scene.add(newFish);
+        const NUM_FISH = 1500; // MASSIVE schools of fish!
+
+        // Spawn fish in large clusters for big pack behavior
+        const NUM_CLUSTERS = 20; // Number of major fish schools
+        for (let cluster = 0; cluster < NUM_CLUSTERS; cluster++) {
+            // Each cluster has a center point
+            const clusterAngle = Math.random() * Math.PI * 2;
+            const clusterDistance = Math.random() * 400;
+            const clusterX = Math.cos(clusterAngle) * clusterDistance;
+            const clusterZ = Math.sin(clusterAngle) * clusterDistance;
+
+            // Spawn many fish around this cluster center
+            const fishPerCluster = Math.floor(NUM_FISH / NUM_CLUSTERS);
+            for (let i = 0; i < fishPerCluster; i++) {
+                // Fish spawn close to cluster center
+                const offsetAngle = Math.random() * Math.PI * 2;
+                const offsetDistance = Math.random() * 30; // Cluster radius
+                const newFish = createFish(
+                    clusterX + Math.cos(offsetAngle) * offsetDistance,
+                    clusterZ + Math.sin(offsetAngle) * offsetDistance
+                );
+                fish.push(newFish);
+                scene.add(newFish);
+            }
         }
 
         let caughtFishCount = 0;
@@ -713,17 +730,18 @@
         function animate() {
             requestAnimationFrame(animate);
 
-            // Animate ocean waves - BIG WAVES!
+            // Animate ocean waves - RANDOM SIZE WAVES!
             waveTime += 0.02;
             for (let i = 0; i < oceanPositions.count; i++) {
                 const x = originalPositions[i * 3];
                 const y = originalPositions[i * 3 + 1];
                 const z = originalPositions[i * 3 + 2];
 
-                // Create wave pattern - MUCH BIGGER WAVES
-                const wave1 = Math.sin(x * 0.05 + waveTime) * 2.5;
-                const wave2 = Math.sin(z * 0.03 + waveTime * 1.3) * 2.0;
-                const wave3 = Math.sin((x + z) * 0.02 + waveTime * 0.8) * 1.5;
+                // Create wave pattern with random amplitudes for varied wave sizes
+                const randomAmp = waveRandomness[i];
+                const wave1 = Math.sin(x * 0.05 + waveTime) * 2.5 * randomAmp;
+                const wave2 = Math.sin(z * 0.03 + waveTime * 1.3) * 2.0 * randomAmp;
+                const wave3 = Math.sin((x + z) * 0.02 + waveTime * 0.8) * 1.5 * randomAmp;
 
                 oceanPositions.setZ(i, wave1 + wave2 + wave3);
             }
@@ -978,7 +996,7 @@
             const PERCEPTION_RADIUS = 25.0; // HUGE perception for massive schools
             const FLEE_RADIUS = 35.0; // Fish can see you from VERY far away!
             const SHARK_ATTRACTION_RADIUS = 20.0; // Stronger shark attraction
-            const SEPARATION_DISTANCE = 1.2; // Even closer together for super dense schools
+            const SEPARATION_DISTANCE = 1.5; // Hitbox distance - fish can't overlap
 
             for (let i = fish.length - 1; i >= 0; i--) {
                 const fishObj = fish[i];
@@ -1017,10 +1035,14 @@
 
                         nearbyCount++;
 
-                        // Separation - avoid crowding
+                        // Separation - STRONG collision avoidance using hitbox radius
+                        const minDistance = fishObj.userData.radius + other.userData.radius;
                         if (dist < SEPARATION_DISTANCE && dist > 0) {
                             const diff = new THREE.Vector3().subVectors(fishObj.position, other.position);
+                            // Much stronger separation force when fish are too close (collision avoidance)
+                            const separationStrength = dist < minDistance ? 0.5 : 0.15;
                             diff.divideScalar(dist); // Weight by distance
+                            diff.multiplyScalar(separationStrength);
                             separation.add(diff);
                         }
                     }
@@ -1034,7 +1056,10 @@
                     alignment.divideScalar(nearbyCount);
                     alignment.normalize().multiplyScalar(0.04); // Strong alignment for synchronized swimming
 
-                    separation.normalize().multiplyScalar(0.035); // Less separation for tighter packing
+                    // Separation is already scaled per-fish above, just normalize the accumulated force
+                    if (separation.length() > 0) {
+                        separation.normalize().multiplyScalar(0.2); // Strong separation to prevent overlap
+                    }
                 }
 
                 // Flee from player when close
@@ -1239,6 +1264,7 @@
                     birdPitch = 0;
                     birdYaw = 0;
                     airTime = maxAirTime;
+                    hunger = maxHunger; // Reset hunger to max on death
 
                     // Lose half of caught fish
                     const fishLost = Math.floor(caughtFishCount / 2);
