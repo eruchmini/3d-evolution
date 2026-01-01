@@ -290,10 +290,10 @@
                 acceleration.z = -moveSpeed;
             }
             if (keys['a'] || keys['arrowleft']) {
-                acceleration.x = -moveSpeed;
+                acceleration.x = moveSpeed;
             }
             if (keys['d'] || keys['arrowright']) {
-                acceleration.x = moveSpeed;
+                acceleration.x = -moveSpeed;
             }
 
             // Apply acceleration to velocity
