@@ -62,10 +62,11 @@
         <div><strong>Simple 3D Game</strong></div>
         <div>Score: <span id="score">0</span></div>
         <div>Speed: <span id="speed">0</span></div>
+        <div>Sprint: <span id="sprint">OFF</span></div>
     </div>
     <div id="instructions">
         <div><strong>Controls:</strong></div>
-        <div>W/↑ - Forward | S/↓ - Backward | A/← - Left | D/→ - Right | Space - Jump</div>
+        <div>W/↑ - Forward | S/↓ - Backward | A/← - Left | D/→ - Right | Space - Jump | Shift/CapsLock - Sprint</div>
     </div>
     <canvas id="gameCanvas"></canvas>
 
@@ -84,7 +85,8 @@
         const gameState = {
             score: 0,
             speed: 0,
-            isJumping: false
+            isJumping: false,
+            isSprinting: false
         };
 
         // Input state
@@ -200,6 +202,13 @@
             obstacle.castShadow = true;
             obstacle.receiveShadow = true;
 
+            // Store dimensions for collision detection
+            obstacle.userData = {
+                width: size,
+                height: height,
+                depth: size
+            };
+
             scene.add(obstacle);
             obstacles.push(obstacle);
         }
@@ -210,9 +219,14 @@
             if (e.key === ' ') {
                 e.preventDefault();
                 if (!gameState.isJumping && player.position.y <= 0.51) {
-                    verticalVelocity = 0.3;
+                    verticalVelocity = 0.6; // Higher jump
                     gameState.isJumping = true;
                 }
+            }
+            // Toggle sprint with Shift or CapsLock
+            if (e.key === 'Shift' || e.key === 'CapsLock') {
+                e.preventDefault();
+                gameState.isSprinting = !gameState.isSprinting;
             }
         });
 
@@ -230,6 +244,31 @@
         function updateUI() {
             document.getElementById('score').textContent = gameState.score;
             document.getElementById('speed').textContent = gameState.speed.toFixed(1);
+            document.getElementById('sprint').textContent = gameState.isSprinting ? 'ON' : 'OFF';
+        }
+
+        // Collision detection function
+        function checkCollision(pos, obstacle) {
+            const playerSize = 0.5; // Half of player cube size
+            const obsData = obstacle.userData;
+
+            const playerMinX = pos.x - playerSize;
+            const playerMaxX = pos.x + playerSize;
+            const playerMinZ = pos.z - playerSize;
+            const playerMaxZ = pos.z + playerSize;
+            const playerMinY = pos.y - playerSize;
+            const playerMaxY = pos.y + playerSize;
+
+            const obsMinX = obstacle.position.x - obsData.width / 2;
+            const obsMaxX = obstacle.position.x + obsData.width / 2;
+            const obsMinZ = obstacle.position.z - obsData.depth / 2;
+            const obsMaxZ = obstacle.position.z + obsData.depth / 2;
+            const obsMinY = obstacle.position.y - obsData.height / 2;
+            const obsMaxY = obstacle.position.y + obsData.height / 2;
+
+            return playerMaxX > obsMinX && playerMinX < obsMaxX &&
+                   playerMaxY > obsMinY && playerMinY < obsMaxY &&
+                   playerMaxZ > obsMinZ && playerMinZ < obsMaxZ;
         }
 
         // Game loop
@@ -239,8 +278,10 @@
             // Reset acceleration
             acceleration.set(0, 0, 0);
 
-            // Input handling
-            const moveSpeed = 0.05;
+            // Input handling with sprint multiplier
+            const baseSpeed = 0.05;
+            const sprintMultiplier = gameState.isSprinting ? 2.0 : 1.0;
+            const moveSpeed = baseSpeed * sprintMultiplier;
 
             if (keys['w'] || keys['arrowup']) {
                 acceleration.z = -moveSpeed;
@@ -275,9 +316,23 @@
                 gameState.isJumping = false;
             }
 
+            // Store previous position for collision resolution
+            const previousPosition = player.position.clone();
+
             // Update player position
             player.position.x += velocity.x;
             player.position.z += velocity.z;
+
+            // Check collision with obstacles
+            for (const obstacle of obstacles) {
+                if (checkCollision(player.position, obstacle)) {
+                    // Collision detected - revert to previous position
+                    player.position.copy(previousPosition);
+                    // Stop velocity
+                    velocity.set(0, 0, 0);
+                    break;
+                }
+            }
 
             // Boundary check
             const boundary = 95;
