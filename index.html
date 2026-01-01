@@ -307,29 +307,61 @@
 
             // Apply gravity
             verticalVelocity += gravity;
+            const previousY = player.position.y;
             player.position.y += verticalVelocity;
 
+            // Check vertical collision with obstacles
+            let onObstacle = false;
+            for (const obstacle of obstacles) {
+                if (checkCollision(player.position, obstacle)) {
+                    const obsData = obstacle.userData;
+                    const obstacleTop = obstacle.position.y + obsData.height / 2;
+                    const obstacleBottom = obstacle.position.y - obsData.height / 2;
+
+                    // If falling down and hitting top of obstacle
+                    if (verticalVelocity <= 0 && previousY > obstacleTop) {
+                        player.position.y = obstacleTop + 0.5; // Player half-height
+                        verticalVelocity = 0;
+                        gameState.isJumping = false;
+                        onObstacle = true;
+                        break;
+                    }
+                    // If jumping up and hitting bottom of obstacle
+                    else if (verticalVelocity > 0 && previousY < obstacleBottom) {
+                        player.position.y = obstacleBottom - 0.5; // Player half-height
+                        verticalVelocity = 0;
+                        break;
+                    }
+                }
+            }
+
             // Ground collision
-            if (player.position.y <= 0.5) {
+            if (!onObstacle && player.position.y <= 0.5) {
                 player.position.y = 0.5;
                 verticalVelocity = 0;
                 gameState.isJumping = false;
             }
 
-            // Store previous position for collision resolution
-            const previousPosition = player.position.clone();
+            // Store previous horizontal position for collision resolution
+            const previousX = player.position.x;
+            const previousZ = player.position.z;
 
-            // Update player position
+            // Update horizontal player position
             player.position.x += velocity.x;
             player.position.z += velocity.z;
 
-            // Check collision with obstacles
+            // Check horizontal collision with obstacles (only check at player's current height)
             for (const obstacle of obstacles) {
-                if (checkCollision(player.position, obstacle)) {
-                    // Collision detected - revert to previous position
-                    player.position.copy(previousPosition);
-                    // Stop velocity
-                    velocity.set(0, 0, 0);
+                // Create a temporary position to check horizontal collision
+                const tempPos = new THREE.Vector3(player.position.x, player.position.y, player.position.z);
+
+                if (checkCollision(tempPos, obstacle)) {
+                    // Collision detected - revert horizontal position only
+                    player.position.x = previousX;
+                    player.position.z = previousZ;
+                    // Stop horizontal velocity only
+                    velocity.x = 0;
+                    velocity.z = 0;
                     break;
                 }
             }
@@ -376,15 +408,15 @@
             const cameraDistance = 10;
             const cameraHeight = 5;
 
-            // Calculate camera position based on player rotation
+            // Calculate camera position based on player rotation (add PI to put camera behind)
             const cameraOffset = new THREE.Vector3(
-                Math.sin(player.rotation.y) * cameraDistance,
+                Math.sin(player.rotation.y + Math.PI) * cameraDistance,
                 cameraHeight,
-                Math.cos(player.rotation.y) * cameraDistance
+                Math.cos(player.rotation.y + Math.PI) * cameraDistance
             );
 
             const targetCameraPos = player.position.clone().add(cameraOffset);
-            camera.position.lerp(targetCameraPos, 0.1);
+            camera.position.lerp(targetCameraPos, 0.05); // Slower, smoother camera (was 0.1)
             camera.lookAt(player.position.x, player.position.y + 0.5, player.position.z);
 
             // Update UI
