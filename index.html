@@ -284,10 +284,10 @@
             const moveSpeed = baseSpeed * sprintMultiplier;
 
             if (keys['w'] || keys['arrowup']) {
-                acceleration.z = -moveSpeed;
+                acceleration.z = moveSpeed;
             }
             if (keys['s'] || keys['arrowdown']) {
-                acceleration.z = moveSpeed;
+                acceleration.z = -moveSpeed;
             }
             if (keys['a'] || keys['arrowleft']) {
                 acceleration.x = -moveSpeed;
