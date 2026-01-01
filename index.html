@@ -1,0 +1,439 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Void Fisher - Drift & Catch</title>
+    <style>
+        body {
+            margin: 0;
+            overflow: hidden;
+            font-family: 'Courier New', monospace;
+            background: #000;
+        }
+        canvas {
+            display: block;
+        }
+        #ui {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            color: #00ffff;
+            font-size: 24px;
+            text-shadow: 0 0 10px #00ffff, 0 0 20px #00ffff;
+            z-index: 100;
+            pointer-events: none;
+        }
+        #instructions {
+            position: absolute;
+            top: 80px;
+            left: 20px;
+            color: #ff00ff;
+            font-size: 14px;
+            text-shadow: 0 0 5px #ff00ff;
+            z-index: 100;
+            pointer-events: none;
+        }
+        #combo {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            color: #ffff00;
+            font-size: 48px;
+            text-shadow: 0 0 20px #ffff00, 0 0 40px #ffff00;
+            z-index: 100;
+            pointer-events: none;
+            opacity: 0;
+            transition: opacity 0.3s;
+        }
+    </style>
+</head>
+<body>
+    <div id="ui">
+        <div>Score: <span id="score">0</span></div>
+        <div>Caught: <span id="caught">0</span></div>
+    </div>
+    <div id="instructions">
+        WASD/Arrows: Move (with drift!)<br>
+        SPACE: Cast Net<br>
+        Catch the void fish!
+    </div>
+    <div id="combo"></div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script>
+        let scene, camera, renderer;
+        let player, net;
+        let fish = [];
+        let particles = [];
+        let score = 0;
+        let caughtCount = 0;
+        let combo = 0;
+        let comboTimer = null;
+
+        const playerSpeed = 0.15;
+        const driftFactor = 0.92;
+        const turnSpeed = 0.08;
+        let velocity = new THREE.Vector3();
+        let angularVelocity = 0;
+
+        const keys = {};
+
+        class VoidFish {
+            constructor() {
+                const geometry = new THREE.ConeGeometry(0.3, 1.2, 6);
+                const material = new THREE.MeshPhongMaterial({
+                    color: new THREE.Color().setHSL(Math.random(), 0.8, 0.6),
+                    emissive: new THREE.Color().setHSL(Math.random(), 0.8, 0.3),
+                    shininess: 100,
+                    transparent: true,
+                    opacity: 0.9
+                });
+
+                this.mesh = new THREE.Mesh(geometry, material);
+
+                const angle = Math.random() * Math.PI * 2;
+                const radius = 15 + Math.random() * 25;
+                this.mesh.position.set(
+                    Math.cos(angle) * radius,
+                    (Math.random() - 0.5) * 15,
+                    Math.sin(angle) * radius
+                );
+
+                this.speed = 0.03 + Math.random() * 0.05;
+                this.swimAngle = Math.random() * Math.PI * 2;
+                this.swimSpeed = 0.02;
+                this.bobSpeed = 0.02 + Math.random() * 0.02;
+                this.bobPhase = Math.random() * Math.PI * 2;
+                this.orbitCenter = new THREE.Vector3(
+                    (Math.random() - 0.5) * 20,
+                    (Math.random() - 0.5) * 10,
+                    (Math.random() - 0.5) * 20
+                );
+                this.orbitRadius = 5 + Math.random() * 10;
+                this.orbitSpeed = 0.01 + Math.random() * 0.02;
+                this.orbitAngle = Math.random() * Math.PI * 2;
+
+                const light = new THREE.PointLight(material.color, 0.5, 5);
+                this.mesh.add(light);
+
+                scene.add(this.mesh);
+            }
+
+            update() {
+                this.orbitAngle += this.orbitSpeed;
+                this.bobPhase += this.bobSpeed;
+
+                this.mesh.position.x = this.orbitCenter.x + Math.cos(this.orbitAngle) * this.orbitRadius;
+                this.mesh.position.z = this.orbitCenter.z + Math.sin(this.orbitAngle) * this.orbitRadius;
+                this.mesh.position.y = this.orbitCenter.y + Math.sin(this.bobPhase) * 2;
+
+                const targetAngle = this.orbitAngle + Math.PI / 2;
+                this.mesh.rotation.y = targetAngle;
+                this.mesh.rotation.x = Math.sin(this.bobPhase) * 0.2;
+            }
+
+            remove() {
+                scene.remove(this.mesh);
+            }
+        }
+
+        class Particle {
+            constructor(position, color) {
+                const geometry = new THREE.SphereGeometry(0.1, 8, 8);
+                const material = new THREE.MeshBasicMaterial({
+                    color: color,
+                    transparent: true,
+                    opacity: 1
+                });
+
+                this.mesh = new THREE.Mesh(geometry, material);
+                this.mesh.position.copy(position);
+
+                this.velocity = new THREE.Vector3(
+                    (Math.random() - 0.5) * 0.3,
+                    Math.random() * 0.3 + 0.2,
+                    (Math.random() - 0.5) * 0.3
+                );
+
+                this.life = 1.0;
+                this.decay = 0.02;
+
+                scene.add(this.mesh);
+            }
+
+            update() {
+                this.mesh.position.add(this.velocity);
+                this.velocity.y -= 0.01;
+                this.life -= this.decay;
+                this.mesh.material.opacity = this.life;
+
+                return this.life > 0;
+            }
+
+            remove() {
+                scene.remove(this.mesh);
+            }
+        }
+
+        function init() {
+            scene = new THREE.Scene();
+            scene.fog = new THREE.FogExp2(0x000033, 0.015);
+
+            camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+            camera.position.set(0, 8, 10);
+            camera.lookAt(0, 0, 0);
+
+            renderer = new THREE.WebGLRenderer({ antialias: true });
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            renderer.setClearColor(0x000033);
+            document.body.appendChild(renderer.domElement);
+
+            const ambientLight = new THREE.AmbientLight(0x222244);
+            scene.add(ambientLight);
+
+            const directionalLight = new THREE.DirectionalLight(0x8888ff, 0.5);
+            directionalLight.position.set(5, 10, 5);
+            scene.add(directionalLight);
+
+            const shipGeometry = new THREE.Group();
+            const hullGeometry = new THREE.ConeGeometry(0.8, 2, 4);
+            const hullMaterial = new THREE.MeshPhongMaterial({
+                color: 0x00ffff,
+                emissive: 0x00aaaa,
+                shininess: 100
+            });
+            const hull = new THREE.Mesh(hullGeometry, hullMaterial);
+            hull.rotation.x = Math.PI / 2;
+            shipGeometry.add(hull);
+
+            const wingGeometry = new THREE.BoxGeometry(2, 0.1, 0.5);
+            const wingMaterial = new THREE.MeshPhongMaterial({
+                color: 0xff00ff,
+                emissive: 0xaa00aa
+            });
+            const wings = new THREE.Mesh(wingGeometry, wingMaterial);
+            wings.position.y = 0.2;
+            shipGeometry.add(wings);
+
+            const glowGeometry = new THREE.SphereGeometry(0.3, 16, 16);
+            const glowMaterial = new THREE.MeshBasicMaterial({
+                color: 0xffff00,
+                transparent: true,
+                opacity: 0.6
+            });
+            const glow = new THREE.Mesh(glowGeometry, glowMaterial);
+            glow.position.z = -0.5;
+            shipGeometry.add(glow);
+
+            player = shipGeometry;
+            player.position.y = 2;
+            scene.add(player);
+
+            const netGeometry = new THREE.TorusGeometry(2, 0.1, 16, 32);
+            const netMaterial = new THREE.MeshBasicMaterial({
+                color: 0x00ff00,
+                transparent: true,
+                opacity: 0
+            });
+            net = new THREE.Mesh(netGeometry, netMaterial);
+            net.rotation.x = Math.PI / 2;
+            player.add(net);
+            net.position.z = 1.5;
+
+            const starGeometry = new THREE.BufferGeometry();
+            const starVertices = [];
+            for (let i = 0; i < 1000; i++) {
+                const x = (Math.random() - 0.5) * 200;
+                const y = (Math.random() - 0.5) * 200;
+                const z = (Math.random() - 0.5) * 200;
+                starVertices.push(x, y, z);
+            }
+            starGeometry.setAttribute('position', new THREE.Float32BufferAttribute(starVertices, 3));
+            const starMaterial = new THREE.PointsMaterial({
+                color: 0xffffff,
+                size: 0.3
+            });
+            const stars = new THREE.Points(starGeometry, starMaterial);
+            scene.add(stars);
+
+            for (let i = 0; i < 20; i++) {
+                fish.push(new VoidFish());
+            }
+
+            window.addEventListener('resize', onWindowResize);
+            document.addEventListener('keydown', (e) => keys[e.key.toLowerCase()] = true);
+            document.addEventListener('keyup', (e) => keys[e.key.toLowerCase()] = false);
+        }
+
+        function onWindowResize() {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        }
+
+        function castNet() {
+            if (net.material.opacity > 0) return;
+
+            net.material.opacity = 0.8;
+            let scale = 1;
+            const expandInterval = setInterval(() => {
+                scale += 0.2;
+                net.scale.set(scale, scale, scale);
+
+                if (scale >= 2) {
+                    clearInterval(expandInterval);
+
+                    checkCatches();
+
+                    setTimeout(() => {
+                        const shrinkInterval = setInterval(() => {
+                            scale -= 0.3;
+                            net.scale.set(scale, scale, scale);
+                            net.material.opacity -= 0.1;
+
+                            if (scale <= 1) {
+                                clearInterval(shrinkInterval);
+                                net.scale.set(1, 1, 1);
+                                net.material.opacity = 0;
+                            }
+                        }, 30);
+                    }, 200);
+                }
+            }, 30);
+        }
+
+        function checkCatches() {
+            const netWorldPos = new THREE.Vector3();
+            net.getWorldPosition(netWorldPos);
+
+            let catchCount = 0;
+
+            fish = fish.filter(f => {
+                const distance = f.mesh.position.distanceTo(netWorldPos);
+                if (distance < 4) {
+                    const points = Math.floor(100 * (1 + combo * 0.5));
+                    score += points;
+                    caughtCount++;
+                    catchCount++;
+
+                    for (let i = 0; i < 20; i++) {
+                        particles.push(new Particle(
+                            f.mesh.position.clone(),
+                            f.mesh.material.color
+                        ));
+                    }
+
+                    f.remove();
+                    return false;
+                }
+                return true;
+            });
+
+            if (catchCount > 0) {
+                combo += catchCount;
+                showCombo(combo);
+
+                clearTimeout(comboTimer);
+                comboTimer = setTimeout(() => {
+                    combo = 0;
+                }, 3000);
+
+                for (let i = 0; i < catchCount; i++) {
+                    fish.push(new VoidFish());
+                }
+
+                updateUI();
+            } else {
+                combo = 0;
+            }
+        }
+
+        function showCombo(comboCount) {
+            const comboEl = document.getElementById('combo');
+            if (comboCount > 1) {
+                comboEl.textContent = `COMBO x${comboCount}!`;
+                comboEl.style.opacity = 1;
+                setTimeout(() => {
+                    comboEl.style.opacity = 0;
+                }, 1000);
+            }
+        }
+
+        function updateUI() {
+            document.getElementById('score').textContent = score;
+            document.getElementById('caught').textContent = caughtCount;
+        }
+
+        function updatePlayer() {
+            let acceleration = new THREE.Vector3();
+            let turning = 0;
+
+            if (keys['w'] || keys['arrowup']) {
+                acceleration.z = -playerSpeed;
+            }
+            if (keys['s'] || keys['arrowdown']) {
+                acceleration.z = playerSpeed;
+            }
+            if (keys['a'] || keys['arrowleft']) {
+                turning = turnSpeed;
+            }
+            if (keys['d'] || keys['arrowright']) {
+                turning = -turnSpeed;
+            }
+
+            acceleration.applyQuaternion(player.quaternion);
+            velocity.add(acceleration);
+            velocity.multiplyScalar(driftFactor);
+
+            angularVelocity += turning;
+            angularVelocity *= 0.85;
+
+            player.position.add(velocity);
+            player.rotation.y += angularVelocity;
+
+            player.rotation.z = -angularVelocity * 3;
+            player.rotation.x = velocity.z * 0.5;
+
+            const maxDistance = 40;
+            if (player.position.length() > maxDistance) {
+                player.position.normalize().multiplyScalar(maxDistance);
+                velocity.multiplyScalar(0.5);
+            }
+
+            if (keys[' '] && !keys.spacePressed) {
+                keys.spacePressed = true;
+                castNet();
+            }
+            if (!keys[' ']) {
+                keys.spacePressed = false;
+            }
+        }
+
+        function animate() {
+            requestAnimationFrame(animate);
+
+            updatePlayer();
+
+            fish.forEach(f => f.update());
+
+            particles = particles.filter(p => {
+                const alive = p.update();
+                if (!alive) p.remove();
+                return alive;
+            });
+
+            const offset = new THREE.Vector3(0, 8, 10);
+            offset.applyQuaternion(player.quaternion);
+            camera.position.lerp(player.position.clone().add(offset), 0.1);
+            camera.lookAt(player.position);
+
+            renderer.render(scene, camera);
+        }
+
+        init();
+        animate();
+    </script>
+</body>
+</html>
