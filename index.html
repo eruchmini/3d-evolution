@@ -283,17 +283,18 @@
             const sprintMultiplier = gameState.isSprinting ? 2.0 : 1.0;
             const moveSpeed = baseSpeed * sprintMultiplier;
 
+            // Controls relative to camera view (top-down perspective)
             if (keys['w'] || keys['arrowup']) {
-                acceleration.z = moveSpeed;
+                acceleration.z = -moveSpeed; // Move away from camera (up on screen)
             }
             if (keys['s'] || keys['arrowdown']) {
-                acceleration.z = -moveSpeed;
+                acceleration.z = moveSpeed; // Move towards camera (down on screen)
             }
             if (keys['a'] || keys['arrowleft']) {
-                acceleration.x = moveSpeed;
+                acceleration.x = -moveSpeed; // Move left on screen
             }
             if (keys['d'] || keys['arrowright']) {
-                acceleration.x = -moveSpeed;
+                acceleration.x = moveSpeed; // Move right on screen
             }
 
             // Apply acceleration to velocity
