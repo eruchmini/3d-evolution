@@ -372,8 +372,17 @@
                 }
             }
 
-            // Camera follow player
-            const cameraOffset = new THREE.Vector3(0, 5, 10);
+            // Camera follow player - always behind
+            const cameraDistance = 10;
+            const cameraHeight = 5;
+
+            // Calculate camera position based on player rotation
+            const cameraOffset = new THREE.Vector3(
+                Math.sin(player.rotation.y) * cameraDistance,
+                cameraHeight,
+                Math.cos(player.rotation.y) * cameraDistance
+            );
+
             const targetCameraPos = player.position.clone().add(cameraOffset);
             camera.position.lerp(targetCameraPos, 0.1);
             camera.lookAt(player.position.x, player.position.y + 0.5, player.position.z);
