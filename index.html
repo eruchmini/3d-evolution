@@ -404,20 +404,19 @@
                 }
             }
 
-            // Camera follow player - always behind
-            const cameraDistance = 10;
-            const cameraHeight = 5;
+            // Camera follow player - top-down view
+            const cameraHeight = 15;
+            const cameraBackOffset = 5; // Slightly behind for better view
 
-            // Calculate camera position based on player rotation (add PI to put camera behind)
-            const cameraOffset = new THREE.Vector3(
-                Math.sin(player.rotation.y + Math.PI) * cameraDistance,
-                cameraHeight,
-                Math.cos(player.rotation.y + Math.PI) * cameraDistance
+            // Position camera above and slightly behind the player
+            const targetCameraPos = new THREE.Vector3(
+                player.position.x,
+                player.position.y + cameraHeight,
+                player.position.z + cameraBackOffset
             );
 
-            const targetCameraPos = player.position.clone().add(cameraOffset);
-            camera.position.lerp(targetCameraPos, 0.05); // Slower, smoother camera (was 0.1)
-            camera.lookAt(player.position.x, player.position.y + 0.5, player.position.z);
+            camera.position.lerp(targetCameraPos, 0.08); // Smooth camera movement
+            camera.lookAt(player.position.x, player.position.y, player.position.z);
 
             // Update UI
             updateUI();
